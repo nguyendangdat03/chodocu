@@ -4,6 +4,7 @@ import { AuthModule } from './auth/auth.module';
 import { ProductModule } from './product/product.module';
 import { CategoryModule } from './category/category.module';
 import { BrandModule } from './brand/brand.module';
+import { AdminModule } from './admin/admin.module';
 import { AuthMiddleware } from './auth/auth.middleware';
 import * as cookieParser from 'cookie-parser';
 
@@ -23,6 +24,7 @@ import * as cookieParser from 'cookie-parser';
     ProductModule,
     CategoryModule,
     BrandModule,
+    AdminModule,
   ],
 })
 export class AppModule implements NestModule {
@@ -32,7 +34,8 @@ export class AppModule implements NestModule {
       .forRoutes(
         'products', // API đăng sản phẩm
         'categories', // API quản lý danh mục
-        'brands', // API quản lý hãng
+        'brands',
+        'admin', // API quản lý hãng
       );
   }
 }
