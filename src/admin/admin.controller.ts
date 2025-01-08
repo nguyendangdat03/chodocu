@@ -1,42 +1,56 @@
-import { Controller, Get, Patch, Param, Request, ForbiddenException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Patch,
+  Param,
+  Request,
+  ForbiddenException,
+  Body,
+} from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { ProductService } from '../product/product.service';
+import { ApproveProductDto } from 'src/product/dto/approve-product.dto';
 
-@Controller('admin/products') // Base path: /admin/products
+@ApiTags('admin/products')
+@Controller('admin/products')
 export class AdminController {
   constructor(private readonly productService: ProductService) {}
 
-  // Lấy tất cả sản phẩm
   @Get()
   async getAllProducts(@Request() req) {
-    console.log('Request User:', req.user);
-    console.log('Request Admin:', req.admin);
-
-    if (!req.admin || req.admin.role !== 'admin') {
-      throw new ForbiddenException('Only admins can view all products');
+    const { role } = req.user;
+    if (role !== 'admin' && role !== 'moderator') {
+      throw new ForbiddenException(
+        'Only admins and moderators can view all products',
+      );
     }
-
     return this.productService.getAllProducts();
   }
 
-  // Duyệt sản phẩm
-  @Patch('approve/:productId') // Route: /admin/products/approve/:productId
-  async approveProduct(@Param('productId') productId: number, @Request() req) {
-    console.log('Request Admin:', req.admin);
-
-    if (!req.admin || req.admin.role !== 'admin') {
-      throw new ForbiddenException('Only admins can approve products');
+  @Patch('approve/:productId')
+  async approveProduct(
+    @Param('productId') productId: number,
+    @Body() approveProductDto: ApproveProductDto,
+    @Request() req,
+  ) {
+    const { role } = req.user;
+    if (role !== 'admin' && role !== 'moderator') {
+      throw new ForbiddenException(
+        'Only admins and moderators can approve products',
+      );
     }
-
-    return this.productService.updateProductStatus(productId, 'approved');
+    return this.productService.updateProductStatus(
+      productId,
+      approveProductDto.status,
+    );
   }
-
-  // Từ chối sản phẩm
   @Patch('reject/:productId') // Route: /admin/products/reject/:productId
   async rejectProduct(@Param('productId') productId: number, @Request() req) {
-    console.log('Request Admin:', req.admin);
-
-    if (!req.admin || req.admin.role !== 'admin') {
-      throw new ForbiddenException('Only admins can reject products');
+    const { role } = req.user;
+    if (role !== 'admin' && role !== 'moderator') {
+      throw new ForbiddenException(
+        'Only admins and moderators can reject products',
+      );
     }
 
     return this.productService.updateProductStatus(productId, 'rejected');
