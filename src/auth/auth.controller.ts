@@ -9,7 +9,7 @@ import {
   Res,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -53,5 +53,11 @@ export class AuthController {
       throw new UnauthorizedException('Not logged in');
     }
     return this.authService.getUserInfo(parseInt(userId));
+  }
+  @Post('logout')
+  @HttpCode(200) // Đặt mã phản hồi HTTP thành 200
+  async logout(@Res() res: Response) {
+    this.authService.logout(res);
+    return res.send({ message: 'Logout successful' });
   }
 }
