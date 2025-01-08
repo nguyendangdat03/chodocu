@@ -15,7 +15,9 @@ export class BrandService {
 
   // Tạo hãng
   async createBrand(name: string, categoryId: number) {
-    const category = await this.categoryRepository.findOne({ where: { id: categoryId } });
+    const category = await this.categoryRepository.findOne({
+      where: { id: categoryId },
+    });
     if (!category) throw new Error('Category not found');
 
     const brand = this.brandRepository.create({ name, category });
@@ -24,6 +26,18 @@ export class BrandService {
 
   // Lấy tất cả hãng theo danh mục
   async getBrandsByCategory(categoryId: number) {
-    return this.brandRepository.find({ where: { category: { id: categoryId } } });
+    // Kiểm tra danh mục có tồn tại
+    const category = await this.categoryRepository.findOne({
+      where: { id: categoryId },
+    });
+    if (!category) {
+      throw new Error('Category not found');
+    }
+
+    // Truy vấn thương hiệu với liên kết danh mục
+    return this.brandRepository.find({
+      where: { category: { id: categoryId } },
+      relations: ['category'], // Đảm bảo lấy thông tin liên quan
+    });
   }
 }
