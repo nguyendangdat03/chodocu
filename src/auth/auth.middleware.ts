@@ -1,4 +1,9 @@
-import { Injectable, NestMiddleware, UnauthorizedException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NestMiddleware,
+  UnauthorizedException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 
 @Injectable()
@@ -12,18 +17,29 @@ export class AuthMiddleware implements NestMiddleware {
 
     if (!role || !user_id) {
       console.error('Missing role or user_id in cookies');
-      throw new UnauthorizedException('Unauthorized: Missing role or user_id in cookies');
+      throw new UnauthorizedException(
+        'Unauthorized: Missing role or user_id in cookies',
+      );
     }
 
     // Phân quyền dựa trên role và endpoint
     if (this.isAdminRoute(req.path) && role !== 'admin') {
-      console.error(`Access denied for role: ${role} on admin route: ${req.path}`);
+      console.error(
+        `Access denied for role: ${role} on admin route: ${req.path}`,
+      );
       throw new ForbiddenException('Forbidden: Admin access required');
     }
 
-    if (this.isUserOrAdminRoute(req.path) && !['user', 'admin'].includes(role)) {
-      console.error(`Access denied for role: ${role} on user/admin route: ${req.path}`);
-      throw new ForbiddenException('Forbidden: User or Admin access required');
+    if (
+      this.isUserOrAdminRoute(req.path) &&
+      !['user', 'admin', 'moderator'].includes(role)
+    ) {
+      console.error(
+        `Access denied for role: ${role} on user/admin route: ${req.path}`,
+      );
+      throw new ForbiddenException(
+        'Forbidden: User, Moderator or Admin access required',
+      );
     }
 
     // Lưu thông tin vào request object
@@ -31,6 +47,10 @@ export class AuthMiddleware implements NestMiddleware {
 
     if (role === 'admin') {
       req['admin'] = { role, isAdmin: true };
+    }
+
+    if (role === 'moderator') {
+      req['moderator'] = { role, isModerator: true };
     }
 
     console.log('User object added to request:', req['user']);

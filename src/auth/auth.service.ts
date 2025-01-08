@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
@@ -13,8 +17,15 @@ export class AuthService {
   ) {}
 
   // Đăng ký tài khoản mới
-  async register(name: string, phoneNumber: string, email: string, password: string) {
-    const existingUser = await this.userRepository.findOne({ where: { phone_number: phoneNumber } });
+  async register(
+    name: string,
+    phoneNumber: string,
+    email: string,
+    password: string,
+  ) {
+    const existingUser = await this.userRepository.findOne({
+      where: { phone_number: phoneNumber },
+    });
     if (existingUser) {
       throw new BadRequestException('Phone number already registered.');
     }
@@ -32,7 +43,9 @@ export class AuthService {
 
   // Đăng nhập
   async login(phoneNumber: string, password: string, res: Response) {
-    const user = await this.userRepository.findOne({ where: { phone_number: phoneNumber } });
+    const user = await this.userRepository.findOne({
+      where: { phone_number: phoneNumber },
+    });
     if (!user) {
       throw new NotFoundException('User not found.');
     }
@@ -63,5 +76,23 @@ export class AuthService {
     // Xóa cookie role và user_id
     res.clearCookie('role', { httpOnly: true });
     res.clearCookie('user_id', { httpOnly: true });
+  }
+
+  // Lấy thông tin người dùng
+  async getUserInfo(userId: number) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found.');
+    }
+
+    return {
+      id: user.id,
+      name: user.name,
+      phone_number: user.phone_number,
+      email: user.email,
+      role: user.role,
+      created_at: user.created_at,
+      updated_at: user.updated_at,
+    };
   }
 }
