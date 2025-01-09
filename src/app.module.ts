@@ -6,6 +6,7 @@ import { CategoryModule } from './category/category.module';
 import { BrandModule } from './brand/brand.module';
 import { AdminModule } from './admin/admin.module';
 import { AuthMiddleware } from './auth/auth.middleware';
+import { PublicModule } from './public/public.module';
 import * as cookieParser from 'cookie-parser';
 
 @Module({
@@ -25,17 +26,16 @@ import * as cookieParser from 'cookie-parser';
     CategoryModule,
     BrandModule,
     AdminModule,
+    PublicModule,
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(cookieParser(), AuthMiddleware)
-      .forRoutes(
-        'products', // API đăng sản phẩm
-        'categories', // API quản lý danh mục
-        'brands',
-        'admin', // API quản lý hãng
-      );
+    consumer.apply(cookieParser(), AuthMiddleware).forRoutes(
+      'products', // API đăng sản phẩm
+      'categories', // API quản lý danh mục
+      'brands',
+      'admin', // API quản lý hãng
+    );
   }
 }

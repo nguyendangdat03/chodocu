@@ -1,4 +1,12 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  ManyToOne,
+  JoinColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { Category } from '../category/category.entity';
 import { Brand } from '../brand/brand.entity';
 import { User } from '../auth/user.entity';
@@ -32,7 +40,11 @@ export class Product {
   @Column({ default: 1 })
   quantity: number;
 
-  @Column({ type: 'enum', enum: ['pending', 'approved', 'rejected'], default: 'pending' })
+  @Column({
+    type: 'enum',
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending',
+  })
   status: 'pending' | 'approved' | 'rejected';
 
   @ManyToOne(() => Category)

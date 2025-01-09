@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from './product.entity';
@@ -34,10 +38,14 @@ export class ProductService {
       quantity?: number;
     },
   ) {
-    const category = await this.categoryRepository.findOne({ where: { id: productData.categoryId } });
+    const category = await this.categoryRepository.findOne({
+      where: { id: productData.categoryId },
+    });
     if (!category) throw new NotFoundException('Category not found');
 
-    const brand = await this.brandRepository.findOne({ where: { id: productData.brandId } });
+    const brand = await this.brandRepository.findOne({
+      where: { id: productData.brandId },
+    });
     if (!brand) throw new NotFoundException('Brand not found');
 
     const user = await this.userRepository.findOne({ where: { id: userId } });
@@ -63,7 +71,9 @@ export class ProductService {
     });
 
     if (!product) {
-      throw new ForbiddenException('You do not have permission to update this product');
+      throw new ForbiddenException(
+        'You do not have permission to update this product',
+      );
     }
 
     Object.assign(product, productData);
@@ -77,15 +87,22 @@ export class ProductService {
     });
 
     if (!product) {
-      throw new ForbiddenException('You do not have permission to delete this product');
+      throw new ForbiddenException(
+        'You do not have permission to delete this product',
+      );
     }
 
     await this.productRepository.remove(product);
     return { message: 'Product deleted successfully', productId };
   }
- // Cập nhật trạng thái sản phẩm
- async updateProductStatus(productId: number, status: 'approved' | 'rejected') {
-    const product = await this.productRepository.findOne({ where: { id: productId } });
+  // Cập nhật trạng thái sản phẩm
+  async updateProductStatus(
+    productId: number,
+    status: 'approved' | 'rejected',
+  ) {
+    const product = await this.productRepository.findOne({
+      where: { id: productId },
+    });
     if (!product) {
       throw new NotFoundException('Product not found');
     }
@@ -108,5 +125,10 @@ export class ProductService {
       console.error('Error fetching products:', error);
       throw new NotFoundException('Could not fetch products');
     }
+  }
+  async getApprovedProducts(): Promise<Product[]> {
+    return this.productRepository.find({
+      where: { status: 'approved' },
+    });
   }
 }
