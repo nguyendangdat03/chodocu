@@ -27,32 +27,23 @@ export class AdminController {
     return this.productService.getAllProducts();
   }
 
-  @Patch('approve/:productId')
-  async approveProduct(
+  @Patch('update-status/:productId')
+  async updateProductStatus(
     @Param('productId') productId: number,
-    @Body() approveProductDto: ApproveProductDto,
+    @Body() approveProductDto: ApproveProductDto, // Chúng ta chỉ cần status trong body
     @Request() req,
   ) {
     const { role } = req.user;
     if (role !== 'admin' && role !== 'moderator') {
       throw new ForbiddenException(
-        'Only admins and moderators can approve products',
+        'Only admins and moderators can approve or reject products',
       );
     }
-    return this.productService.updateProductStatus(
-      productId,
-      approveProductDto.status,
-    );
-  }
-  @Patch('reject/:productId') // Route: /admin/products/reject/:productId
-  async rejectProduct(@Param('productId') productId: number, @Request() req) {
-    const { role } = req.user;
-    if (role !== 'admin' && role !== 'moderator') {
-      throw new ForbiddenException(
-        'Only admins and moderators can reject products',
-      );
+    const { status } = approveProductDto;
+    // Kiểm tra trạng thái hợp lệ
+    if (status !== 'approved' && status !== 'rejected') {
+      throw new ForbiddenException('Invalid status value');
     }
-
-    return this.productService.updateProductStatus(productId, 'rejected');
+    return this.productService.updateProductStatus(productId, status);
   }
 }
