@@ -37,6 +37,7 @@ export class AuthService {
       email,
       password: hashedPassword,
       role: 'user', // Gán mặc định là user
+      status: 'pending', // Gán mặc định là pending
     });
     return this.userRepository.save(user);
   }
@@ -48,6 +49,17 @@ export class AuthService {
     });
     if (!user) {
       throw new NotFoundException('User not found.');
+    }
+
+    // Chỉ cho phép tài khoản active đăng nhập
+    if (user.status !== 'active') {
+      if (user.status === 'inactive') {
+        throw new BadRequestException('Your account has been deactivated.');
+      } else if (user.status === 'pending') {
+        throw new BadRequestException('Your account is pending approval.');
+      } else {
+        throw new BadRequestException('Your account is not active.');
+      }
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -67,6 +79,7 @@ export class AuthService {
         phone_number: user.phone_number,
         email: user.email,
         role: user.role,
+        status: user.status,
       },
     };
   }
@@ -91,8 +104,62 @@ export class AuthService {
       phone_number: user.phone_number,
       email: user.email,
       role: user.role,
+      status: user.status,
       created_at: user.created_at,
       updated_at: user.updated_at,
+    };
+  }
+
+  // Lấy tổng số lượng người dùng
+  async getUserCount() {
+    const count = await this.userRepository.count();
+    return { count };
+  }
+
+  // Lấy tất cả người dùng (chỉ admin có quyền)
+  async getAllUsers() {
+    const users = await this.userRepository.find({
+      select: [
+        'id',
+        'name',
+        'phone_number',
+        'email',
+        'role',
+        'status',
+        'created_at',
+        'updated_at',
+      ],
+      order: {
+        created_at: 'DESC',
+      },
+    });
+
+    return { users };
+  }
+
+  // Cập nhật trạng thái tài khoản
+  async updateAccountStatus(
+    userId: number,
+    newStatus: 'active' | 'inactive' | 'pending',
+  ) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found.');
+    }
+
+    user.status = newStatus;
+    await this.userRepository.save(user);
+
+    return {
+      message: `Account status updated to ${newStatus}`,
+      user: {
+        id: user.id,
+        name: user.name,
+        phone_number: user.phone_number,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+      },
     };
   }
 }
