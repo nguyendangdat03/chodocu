@@ -34,4 +34,8 @@ export class PublicController {
       },
     }));
   }
+  @Get('products/:id')
+  async getProductById(@Param('id') id: number) {
+    return this.productService.getProductById(id);
+  }
 }

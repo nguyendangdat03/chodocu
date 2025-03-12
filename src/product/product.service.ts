@@ -95,20 +95,53 @@ export class ProductService {
     await this.productRepository.remove(product);
     return { message: 'Product deleted successfully', productId };
   }
-  // Cập nhật trạng thái sản phẩm
   async updateProductStatus(
     productId: number,
+    userId: number,
     status: 'approved' | 'rejected',
+    rejectionReason?: string,
   ) {
+    console.log('Update product status called with:', {
+      productId,
+      userId,
+      status,
+      rejectionReason,
+    });
+
+    // Bỏ qua việc kiểm tra vai trò ở đây vì đã kiểm tra ở middleware và controller
+    // Chỉ cần kiểm tra sự tồn tại của người dùng
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    console.log('User found:', user);
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
     const product = await this.productRepository.findOne({
       where: { id: productId },
+      relations: ['user', 'category', 'brand'],
     });
+
     if (!product) {
       throw new NotFoundException('Product not found');
     }
 
+    if (status === 'rejected' && !rejectionReason) {
+      throw new ForbiddenException(
+        'Rejection reason is required when rejecting a product',
+      );
+    }
+
     product.status = status;
+    product.rejection_reason = status === 'rejected' ? rejectionReason : null;
+
     await this.productRepository.save(product);
+
+    // Remove sensitive user information from response
+    if (product.user) {
+      const { password, role, ...userInfo } = product.user;
+      product.user = userInfo as any;
+    }
 
     return { message: `Product ${status} successfully`, product };
   }
@@ -130,5 +163,26 @@ export class ProductService {
     return this.productRepository.find({
       where: { status: 'approved' },
     });
+  }
+
+  async getProductById(id: number) {
+    const product = await this.productRepository.findOne({
+      where: { id, status: 'approved' },
+      relations: ['user', 'category', 'brand'],
+    });
+
+    if (!product) {
+      throw new NotFoundException(
+        `Product with ID ${id} not found or not approved`,
+      );
+    }
+
+    // Remove sensitive user information
+    if (product.user) {
+      const { password, role, ...userInfo } = product.user;
+      product.user = userInfo as any;
+    }
+
+    return product;
   }
 }

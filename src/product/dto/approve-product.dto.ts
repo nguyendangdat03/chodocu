@@ -1,10 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { IsOptional, IsString } from 'class-validator';
 
-// approve-product.dto.ts (Nếu cần)
 export class ApproveProductDto {
   @ApiProperty({
-    description: 'Trạng thái phê duyệt',
-    enum: ['approved', 'rejected'],
+    required: false,
+    description: 'Rejection reason (required if rejecting)',
   })
-  status: 'approved' | 'rejected';
+  @IsOptional()
+  @IsString()
+  reason?: string;
 }

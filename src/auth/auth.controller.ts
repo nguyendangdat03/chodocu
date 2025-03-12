@@ -8,12 +8,15 @@ import {
   Req,
   Res,
   UnauthorizedException,
+  ForbiddenException,
+  Patch,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { UpdateStatusDto } from './dto/update-status.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -54,10 +57,46 @@ export class AuthController {
     }
     return this.authService.getUserInfo(parseInt(userId));
   }
+
   @Post('logout')
-  @HttpCode(200) // Đặt mã phản hồi HTTP thành 200
+  @HttpCode(200)
   async logout(@Res() res: Response) {
     this.authService.logout(res);
     return res.send({ message: 'Logout successful' });
+  }
+
+  @Patch('users/:id/status')
+  async updateUserStatus(
+    @Param('id') userId: number,
+    @Body() updateStatusDto: UpdateStatusDto,
+    @Req() req: Request,
+  ) {
+    const role = req['user']?.role || req.cookies['role'];
+    if (role !== 'admin' && role !== 'moderator') {
+      throw new ForbiddenException('Admin or Moderator access required');
+    }
+    return this.authService.updateAccountStatus(userId, updateStatusDto.status);
+  }
+
+  @Get('users/count')
+  async getUserCount(@Req() req: Request) {
+    // The middleware should have already attached the user info to req['user']
+    // But we can double-check here
+    const role = req['user']?.role || req.cookies['role'];
+    if (role !== 'admin' && role !== 'moderator') {
+      throw new ForbiddenException('Admin or Moderator access required');
+    }
+    return this.authService.getUserCount();
+  }
+
+  @Get('users/all')
+  async getAllUsers(@Req() req: Request) {
+    // The middleware should have already attached the user info to req['user']
+    // But we can double-check here
+    const role = req['user']?.role || req.cookies['role'];
+    if (role !== 'admin' && role !== 'moderator') {
+      throw new ForbiddenException('Admin or Moderator access required');
+    }
+    return this.authService.getAllUsers();
   }
 }

@@ -59,6 +59,9 @@ export class Product {
   @JoinColumn({ name: 'user_id' })
   user: User;
 
+  @Column({ nullable: true, type: 'text' })
+  rejection_reason: string;
+
   @CreateDateColumn()
   created_at: Date;
 

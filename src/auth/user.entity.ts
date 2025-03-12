@@ -30,6 +30,13 @@ export class User {
   })
   role: string;
 
+  @Column({
+    type: 'enum',
+    enum: ['active', 'inactive', 'pending'],
+    default: 'pending',
+  })
+  status: string;
+
   @CreateDateColumn()
   created_at: Date;
 
