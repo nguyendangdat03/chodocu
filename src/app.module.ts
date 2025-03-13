@@ -7,6 +7,7 @@ import { BrandModule } from './brand/brand.module';
 import { AdminModule } from './admin/admin.module';
 import { AuthMiddleware } from './auth/auth.middleware';
 import { PublicModule } from './public/public.module';
+import { ChatModule } from './chat/chat.module';
 import * as cookieParser from 'cookie-parser';
 
 @Module({
@@ -27,6 +28,7 @@ import * as cookieParser from 'cookie-parser';
     BrandModule,
     AdminModule,
     PublicModule,
+    ChatModule,
   ],
 })
 export class AppModule implements NestModule {
@@ -36,6 +38,7 @@ export class AppModule implements NestModule {
       'categories', // API quản lý danh mục
       'brands',
       'admin', // API quản lý hãng
+      'chat', // Add chat routes to use the AuthMiddleware
     );
   }
 }
