@@ -1,5 +1,5 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiQuery } from '@nestjs/swagger';
 import { ProductService } from '../product/product.service';
 import { CategoryService } from '../category/category.service';
 import { BrandService } from '../brand/brand.service';
@@ -10,18 +10,29 @@ export class PublicController {
   constructor(
     private readonly productService: ProductService,
     private readonly brandService: BrandService,
-    private readonly categoryService: CategoryService, // Inject BrandService
+    private readonly categoryService: CategoryService,
   ) {}
 
   @Get('products/approved')
-  async getPublicApprovedProducts() {
-    return this.productService.getApprovedProducts();
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  async getPublicApprovedProducts(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+  ) {
+    // Convert string parameters to numbers and provide defaults
+    const pageNum = page ? parseInt(page.toString(), 10) : 1;
+    const limitNum = limit ? parseInt(limit.toString(), 10) : 10;
+
+    // Pass the pagination parameters to the service
+    return this.productService.getApprovedProducts(pageNum, limitNum);
   }
 
   @Get('categories')
   async getCategories() {
-    return this.categoryService.getCategories(); // Call the method from CategoryService
+    return this.categoryService.getCategories();
   }
+
   @Get(':categoryId')
   async getBrandsByCategory(@Param('categoryId') categoryId: number) {
     const brands = await this.brandService.getBrandsByCategory(categoryId);
@@ -34,6 +45,7 @@ export class PublicController {
       },
     }));
   }
+
   @Get('products/:id')
   async getProductById(@Param('id') id: number) {
     return this.productService.getProductById(id);

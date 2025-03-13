@@ -37,7 +37,7 @@ export class AuthService {
       email,
       password: hashedPassword,
       role: 'user', // Gán mặc định là user
-      status: 'pending', // Gán mặc định là pending
+      status: 'active', // Gán mặc định là pending
     });
     return this.userRepository.save(user);
   }
@@ -135,6 +135,48 @@ export class AuthService {
     });
 
     return { users };
+  }
+
+  // Lấy người dùng có phân trang
+  async getPaginatedUsers(page: number = 1, limit: number = 20) {
+    // Ensure positive values
+    page = page > 0 ? page : 1;
+    limit = limit > 0 ? limit : 20;
+
+    const skip = (page - 1) * limit;
+
+    const [users, total] = await this.userRepository.findAndCount({
+      select: [
+        'id',
+        'name',
+        'phone_number',
+        'email',
+        'role',
+        'status',
+        'created_at',
+        'updated_at',
+      ],
+      order: {
+        created_at: 'DESC',
+      },
+      skip,
+      take: limit,
+    });
+
+    // Calculate total pages
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      users,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
   }
 
   // Cập nhật trạng thái tài khoản
