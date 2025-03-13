@@ -18,6 +18,9 @@ export class Message {
   @Column('text')
   content: string;
 
+  @Column({ default: false })
+  is_read: boolean;
+
   @Column()
   sender_id: number;
 
@@ -31,9 +34,6 @@ export class Message {
   @ManyToOne(() => Conversation, (conversation) => conversation.messages)
   @JoinColumn({ name: 'conversation_id' })
   conversation: Conversation;
-
-  @Column({ default: false })
-  is_read: boolean;
 
   @CreateDateColumn()
   created_at: Date;

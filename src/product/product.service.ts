@@ -147,22 +147,62 @@ export class ProductService {
   }
 
   // Lấy tất cả sản phẩm
-  async getAllProducts() {
+  async getAllProducts(page = 1, limit = 10) {
     try {
-      const products = await this.productRepository.find({
+      const skip = (page - 1) * limit;
+
+      const [products, total] = await this.productRepository.findAndCount({
         relations: ['user', 'category', 'brand'],
+        skip,
+        take: limit,
+        order: { id: 'DESC' }, // Sort by newest first
       });
+
       console.log('Fetched Products:', products);
-      return products;
+
+      return {
+        data: products,
+        meta: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+          hasNextPage: page < Math.ceil(total / limit),
+          hasPreviousPage: page > 1,
+        },
+      };
     } catch (error) {
       console.error('Error fetching products:', error);
       throw new NotFoundException('Could not fetch products');
     }
   }
-  async getApprovedProducts(): Promise<Product[]> {
-    return this.productRepository.find({
+
+  // Also update getApprovedProducts with pagination
+  async getApprovedProducts(
+    page = 1,
+    limit = 10,
+  ): Promise<{ data: Product[]; meta: any }> {
+    const skip = (page - 1) * limit;
+
+    const [products, total] = await this.productRepository.findAndCount({
       where: { status: 'approved' },
+      relations: ['user', 'category', 'brand'],
+      skip,
+      take: limit,
+      order: { id: 'DESC' },
     });
+
+    return {
+      data: products,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPreviousPage: page > 1,
+      },
+    };
   }
 
   async getProductById(id: number) {

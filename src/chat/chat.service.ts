@@ -103,16 +103,86 @@ export class ChatService {
     return this.messageRepository.save(newMessage);
   }
 
-  async getConversations(userId: number): Promise<Conversation[]> {
-    return this.conversationRepository
+  async getConversations(userId: number): Promise<any[]> {
+    // Lấy tất cả cuộc trò chuyện mà người dùng hiện tại tham gia
+    const conversations = await this.conversationRepository
       .createQueryBuilder('conversation')
-      .innerJoinAndSelect('conversation.participants', 'participant')
-      .leftJoinAndSelect('conversation.messages', 'message')
-      .where('participant.id = :userId', { userId })
+      .leftJoinAndSelect('conversation.participants', 'participant')
+      .leftJoinAndSelect(
+        'conversation.messages',
+        'message',
+        'message.conversation_id = conversation.id',
+      )
+      .leftJoinAndSelect('message.sender', 'messageSender')
+      // Lấy thêm thông tin chi tiết của người dùng
+      // .leftJoinAndSelect(
+      //   'participant.avatar',
+      //   'avatar',
+      //   'avatar.user_id = participant.id',
+      // )
+      // .leftJoinAndSelect(
+      //   'participant.profile',
+      //   'profile',
+      //   'profile.user_id = participant.id',
+      // )
+      // Lọc các cuộc trò chuyện mà người dùng hiện tại tham gia
+      .where((qb) => {
+        const subQuery = qb
+          .subQuery()
+          .select('cp.conversation_id')
+          .from('conversation_participants', 'cp')
+          .where('cp.user_id = :userId')
+          .getQuery();
+        return 'conversation.id IN ' + subQuery;
+      })
+      .setParameter('userId', userId)
       .orderBy('message.created_at', 'DESC')
       .getMany();
-  }
 
+    // Xử lý và định dạng lại kết quả để dễ sử dụng hơn
+    return conversations.map((conversation) => {
+      // Lọc ra người nhận (người không phải là người dùng hiện tại)
+      const receivers = conversation.participants.filter(
+        (participant) => participant.id !== userId,
+      );
+
+      // Lọc ra người dùng hiện tại
+      const currentUser = conversation.participants.find(
+        (participant) => participant.id === userId,
+      );
+
+      // Lấy tin nhắn mới nhất
+      let lastMessage = null;
+      if (conversation.messages && conversation.messages.length > 0) {
+        // Sắp xếp tin nhắn theo thời gian giảm dần và lấy tin nhắn đầu tiên
+        conversation.messages.sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        );
+        lastMessage = conversation.messages[0];
+      }
+
+      // Đếm số tin nhắn chưa đọc
+      const unreadCount = conversation.messages
+        ? conversation.messages.filter(
+            (msg) => !msg.is_read && msg.sender_id !== userId,
+          ).length
+        : 0;
+
+      // Trả về định dạng phù hợp
+      return {
+        id: conversation.id,
+        title: conversation.title,
+        is_active: conversation.is_active,
+        created_at: conversation.created_at,
+        updated_at: conversation.updated_at,
+        currentUser: currentUser,
+        receivers: receivers, // Thông tin người nhận/người còn lại trong cuộc trò chuyện
+        lastMessage: lastMessage,
+        unreadCount: unreadCount,
+      };
+    });
+  }
   async getConversationMessages(
     userId: number,
     conversationId: number,
