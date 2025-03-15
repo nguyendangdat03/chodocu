@@ -9,6 +9,7 @@ import { Product } from './product.entity';
 import { Category } from '../category/category.entity';
 import { Brand } from '../brand/brand.entity';
 import { User } from '../auth/user.entity';
+import { MinioService } from '../minio/minio.service';
 
 @Injectable()
 export class ProductService {
@@ -20,7 +21,8 @@ export class ProductService {
     @InjectRepository(Brand)
     private readonly brandRepository: Repository<Brand>,
     @InjectRepository(User)
-    private readonly userRepository: Repository<User>, // Đảm bảo User entity được inject
+    private readonly userRepository: Repository<User>,
+    private readonly minioService: MinioService, // Inject MinioService
   ) {}
 
   async createProduct(
@@ -51,16 +53,53 @@ export class ProductService {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
+    // Validate image URLs (should be from MinIO)
+    this.validateMinioImageUrls(productData.images);
+
     const product = this.productRepository.create({
       ...productData,
       category,
       brand,
       user,
-      status: 'pending', // Mặc định chờ admin duyệt
+      status: 'pending',
     });
 
     return this.productRepository.save(product);
   }
+
+  // Helper method to validate MinIO image URLs
+  private validateMinioImageUrls(images: string[]): void {
+    if (!images || images.length === 0) {
+      throw new ForbiddenException('At least one product image is required');
+    }
+
+    // Get MinIO endpoint from the service
+    const minioEndpoint = this.minioService.getMinioPublicEndpoint();
+
+    // Check if all image URLs are from our MinIO server
+    const invalidUrls = images.filter((url) => !url.startsWith(minioEndpoint));
+    if (invalidUrls.length > 0) {
+      throw new ForbiddenException(
+        'All images must be uploaded through our storage service',
+      );
+    }
+  }
+
+  // Extract object name from MinIO URL
+  private getObjectNameFromUrl(url: string): string {
+    // Parse the URL to extract the object name
+    try {
+      const urlObj = new URL(url);
+      // Extract the path without the bucket name
+      const pathParts = urlObj.pathname.split('/');
+      // Skip the first empty segment and the bucket name
+      return pathParts.slice(2).join('/');
+    } catch (error) {
+      console.error('Error parsing URL:', error);
+      return '';
+    }
+  }
+
   async updateProduct(
     productId: number,
     userId: number,
@@ -68,6 +107,7 @@ export class ProductService {
   ) {
     const product = await this.productRepository.findOne({
       where: { id: productId, user: { id: userId } },
+      relations: ['user'],
     });
 
     if (!product) {
@@ -76,11 +116,46 @@ export class ProductService {
       );
     }
 
+    // If updating images, validate the new images
+    if (productData.images) {
+      this.validateMinioImageUrls(productData.images);
+
+      // Delete old images that are not in the new list
+      const oldImages = product.images || [];
+      const imagesToDelete = oldImages.filter(
+        (oldUrl) => !productData.images.includes(oldUrl),
+      );
+
+      // Delete unused images from MinIO
+      await Promise.all(
+        imagesToDelete.map(async (url) => {
+          const objectName = this.getObjectNameFromUrl(url);
+          if (objectName) {
+            try {
+              await this.minioService.deleteFile(objectName);
+            } catch (error) {
+              console.error(`Failed to delete image ${url}:`, error);
+            }
+          }
+        }),
+      );
+    }
+
+    // Reset product status to pending if certain fields are updated
+    if (
+      productData.title ||
+      productData.description ||
+      productData.price ||
+      productData.images ||
+      productData.condition
+    ) {
+      productData.status = 'pending';
+    }
+
     Object.assign(product, productData);
     return this.productRepository.save(product);
   }
 
-  // Xóa sản phẩm
   async deleteProduct(productId: number, userId: number) {
     const product = await this.productRepository.findOne({
       where: { id: productId, user: { id: userId } },
@@ -92,9 +167,26 @@ export class ProductService {
       );
     }
 
+    // Delete product images from MinIO
+    const images = product.images || [];
+    await Promise.all(
+      images.map(async (url) => {
+        const objectName = this.getObjectNameFromUrl(url);
+        if (objectName) {
+          try {
+            await this.minioService.deleteFile(objectName);
+          } catch (error) {
+            console.error(`Failed to delete image ${url}:`, error);
+          }
+        }
+      }),
+    );
+
     await this.productRepository.remove(product);
     return { message: 'Product deleted successfully', productId };
   }
+
+  // Rest of the methods remain unchanged
   async updateProductStatus(
     productId: number,
     userId: number,
@@ -108,8 +200,6 @@ export class ProductService {
       rejectionReason,
     });
 
-    // Bỏ qua việc kiểm tra vai trò ở đây vì đã kiểm tra ở middleware và controller
-    // Chỉ cần kiểm tra sự tồn tại của người dùng
     const user = await this.userRepository.findOne({ where: { id: userId } });
     console.log('User found:', user);
 
@@ -146,7 +236,6 @@ export class ProductService {
     return { message: `Product ${status} successfully`, product };
   }
 
-  // Lấy tất cả sản phẩm
   async getAllProducts(page = 1, limit = 10) {
     try {
       const skip = (page - 1) * limit;
@@ -155,7 +244,7 @@ export class ProductService {
         relations: ['user', 'category', 'brand'],
         skip,
         take: limit,
-        order: { id: 'DESC' }, // Sort by newest first
+        order: { id: 'DESC' },
       });
 
       console.log('Fetched Products:', products);
@@ -177,7 +266,6 @@ export class ProductService {
     }
   }
 
-  // Also update getApprovedProducts with pagination
   async getApprovedProducts(
     page = 1,
     limit = 10,
@@ -225,7 +313,6 @@ export class ProductService {
 
     return product;
   }
-  // Add this method to the ProductService class
 
   async getUserProducts(
     userId: number,
@@ -236,7 +323,6 @@ export class ProductService {
     try {
       const where: any = { user: { id: userId } };
 
-      // Add status filter if provided
       if (status) {
         where.status = status;
       }
@@ -248,7 +334,7 @@ export class ProductService {
         relations: ['category', 'brand'],
         skip,
         take: limit,
-        order: { id: 'DESC' }, // Sort by newest first
+        order: { id: 'DESC' },
       });
 
       return {

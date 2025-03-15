@@ -1,5 +1,6 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { ProductModule } from './product/product.module';
 import { CategoryModule } from './category/category.module';
@@ -8,10 +9,15 @@ import { AdminModule } from './admin/admin.module';
 import { AuthMiddleware } from './auth/auth.middleware';
 import { PublicModule } from './public/public.module';
 import { ChatModule } from './chat/chat.module';
+import { MinioModule } from './minio/minio.module';
 import * as cookieParser from 'cookie-parser';
 
 @Module({
   imports: [
+    // Load environment variables
+    ConfigModule.forRoot({
+      isGlobal: true, // Make ConfigModule available everywhere
+    }),
     TypeOrmModule.forRoot({
       type: 'mysql',
       host: 'localhost',
@@ -22,6 +28,8 @@ import * as cookieParser from 'cookie-parser';
       autoLoadEntities: true,
       synchronize: true,
     }),
+    // Register MinioModule
+    MinioModule,
     AuthModule,
     ProductModule,
     CategoryModule,
@@ -38,7 +46,8 @@ export class AppModule implements NestModule {
       'categories', // API quản lý danh mục
       'brands',
       'admin', // API quản lý hãng
-      'chat', // Add chat routes to use the AuthMiddleware
+      'chat', // Chat routes
+      'upload', // Include upload routes to middleware
     );
   }
 }

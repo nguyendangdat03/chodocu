@@ -19,6 +19,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { PaginationDto } from './dto/pagination.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -62,6 +63,21 @@ export class AuthController {
       throw new UnauthorizedException('Not logged in');
     }
     return this.authService.getUserInfo(parseInt(userId));
+  }
+
+  @Patch('profile')
+  @ApiOperation({ summary: 'Update user profile (name, email, password)' })
+  @ApiResponse({ status: 200, description: 'Profile updated successfully' })
+  async updateUserProfile(
+    @Body() updateUserDto: UpdateUserDto,
+    @Req() req: Request,
+  ) {
+    const userId = req.cookies['user_id'];
+    if (!userId) {
+      throw new UnauthorizedException('Not logged in');
+    }
+
+    return this.authService.updateUserProfile(parseInt(userId), updateUserDto);
   }
 
   @Post('logout')

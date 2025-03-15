@@ -6,13 +6,17 @@ import { Brand } from '../brand/brand.entity';
 import { User } from '../auth/user.entity';
 import { ProductService } from './product.service';
 import { ProductController } from './product.controller';
-
+import { MinioModule } from '../minio/minio.module'; // Import MinioModule
+import { FileUploadController } from '../minio/file-upload.controller'; // Import FileUploadController
+import { AuthModule } from '../auth/auth.module'; // Import AuthModule
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Product, Category, Brand, User]), // Đăng ký Brand entity
+    TypeOrmModule.forFeature([Product, Category, Brand, User]),
+    MinioModule,
+    AuthModule, // Add MinioModule
   ],
-  controllers: [ProductController],
+  controllers: [ProductController, FileUploadController], // Add FileUploadController
   providers: [ProductService],
-  exports: [ProductService], // Nếu cần sử dụng trong module khác
+  exports: [ProductService],
 })
 export class ProductModule {}
