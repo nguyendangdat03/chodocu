@@ -114,18 +114,6 @@ export class ChatService {
         'message.conversation_id = conversation.id',
       )
       .leftJoinAndSelect('message.sender', 'messageSender')
-      // Lấy thêm thông tin chi tiết của người dùng
-      // .leftJoinAndSelect(
-      //   'participant.avatar',
-      //   'avatar',
-      //   'avatar.user_id = participant.id',
-      // )
-      // .leftJoinAndSelect(
-      //   'participant.profile',
-      //   'profile',
-      //   'profile.user_id = participant.id',
-      // )
-      // Lọc các cuộc trò chuyện mà người dùng hiện tại tham gia
       .where((qb) => {
         const subQuery = qb
           .subQuery()
@@ -162,13 +150,6 @@ export class ChatService {
         lastMessage = conversation.messages[0];
       }
 
-      // Đếm số tin nhắn chưa đọc
-      const unreadCount = conversation.messages
-        ? conversation.messages.filter(
-            (msg) => !msg.is_read && msg.sender_id !== userId,
-          ).length
-        : 0;
-
       // Trả về định dạng phù hợp
       return {
         id: conversation.id,
@@ -179,10 +160,10 @@ export class ChatService {
         currentUser: currentUser,
         receivers: receivers, // Thông tin người nhận/người còn lại trong cuộc trò chuyện
         lastMessage: lastMessage,
-        unreadCount: unreadCount,
       };
     });
   }
+
   async getConversationMessages(
     userId: number,
     conversationId: number,
@@ -211,39 +192,5 @@ export class ChatService {
       relations: ['sender'],
       order: { created_at: 'ASC' },
     });
-  }
-
-  async markMessagesAsRead(
-    userId: number,
-    conversationId: number,
-  ): Promise<void> {
-    const conversation = await this.conversationRepository.findOne({
-      where: { id: conversationId },
-      relations: ['participants'],
-    });
-
-    if (!conversation) {
-      throw new NotFoundException('Không tìm thấy cuộc trò chuyện');
-    }
-
-    // Kiểm tra xem người dùng có trong cuộc trò chuyện không
-    const isParticipant = conversation.participants.some(
-      (participant) => participant.id === userId,
-    );
-    if (!isParticipant) {
-      throw new BadRequestException(
-        'Bạn không phải là thành viên của cuộc trò chuyện này',
-      );
-    }
-
-    // Đánh dấu tất cả tin nhắn là đã đọc (trừ tin nhắn của người dùng hiện tại)
-    await this.messageRepository
-      .createQueryBuilder()
-      .update(Message)
-      .set({ is_read: true })
-      .where('conversation_id = :conversationId', { conversationId })
-      .andWhere('sender_id != :userId', { userId })
-      .andWhere('is_read = :isRead', { isRead: false })
-      .execute();
   }
 }

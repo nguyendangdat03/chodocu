@@ -17,17 +17,46 @@ export class AuthService {
   ) {}
 
   // Đăng ký tài khoản mới
+  // Đăng ký tài khoản mới
   async register(
     name: string,
     phoneNumber: string,
     email: string,
     password: string,
   ) {
-    const existingUser = await this.userRepository.findOne({
+    // Validate phone number format (Vietnamese: 10 digits starting with 0)
+    if (!phoneNumber.match(/^0\d{9}$/)) {
+      throw new BadRequestException(
+        'Số điện thoại không hợp lệ. Vui lòng nhập số điện thoại Việt Nam hợp lệ.',
+      );
+    }
+
+    // Validate password length and content
+    if (password.length < 7) {
+      throw new BadRequestException('Mật khẩu phải có ít nhất 7 ký tự.');
+    }
+
+    // Validate password contains both letters and numbers
+    if (!password.match(/^(?=.*[A-Za-z])(?=.*\d).+$/)) {
+      throw new BadRequestException('Mật khẩu phải bao gồm cả chữ cái và số.');
+    }
+
+    // Check if phone number already exists
+    const existingUserByPhone = await this.userRepository.findOne({
       where: { phone_number: phoneNumber },
     });
-    if (existingUser) {
-      throw new BadRequestException('Phone number already registered.');
+
+    if (existingUserByPhone) {
+      throw new BadRequestException('Số điện thoại đã được đăng ký.');
+    }
+
+    // Check if email already exists
+    const existingUserByEmail = await this.userRepository.findOne({
+      where: { email: email },
+    });
+
+    if (existingUserByEmail) {
+      throw new BadRequestException('Email đã được đăng ký.');
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -37,8 +66,9 @@ export class AuthService {
       email,
       password: hashedPassword,
       role: 'user', // Gán mặc định là user
-      status: 'active', // Gán mặc định là pending
+      status: 'active', // Gán mặc định là active
     });
+
     return this.userRepository.save(user);
   }
 

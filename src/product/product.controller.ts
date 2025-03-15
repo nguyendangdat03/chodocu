@@ -1,3 +1,4 @@
+// Import additional decorators
 import {
   Controller,
   Post,
@@ -7,8 +8,12 @@ import {
   Param,
   Request,
   ForbiddenException,
+  Get,
+  Query,
+  ParseIntPipe,
+  DefaultValuePipe,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiQuery, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -54,5 +59,26 @@ export class ProductController {
       throw new ForbiddenException('Only users can delete products');
     }
     return this.productService.deleteProduct(productId, user_id);
+  }
+
+  @Get('user')
+  @ApiOperation({
+    summary: 'Get products by current user with optional status filter',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['pending', 'approved', 'rejected'],
+  })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  async getUserProducts(
+    @Request() req,
+    @Query('status') status?: 'pending' | 'approved' | 'rejected',
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page?: number,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit?: number,
+  ) {
+    const { user_id } = req.user;
+    return this.productService.getUserProducts(user_id, status, page, limit);
   }
 }

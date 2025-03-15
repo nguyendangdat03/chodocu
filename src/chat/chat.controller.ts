@@ -1,12 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Param,
-  Request,
-  Patch,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Request } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { SendMessageDto } from './dto/send-message.dto';
@@ -50,12 +42,5 @@ export class ChatController {
   sendMessage(@Request() req, @Body() sendMessageDto: SendMessageDto) {
     const { user_id } = req.user;
     return this.chatService.sendMessage(user_id, sendMessageDto);
-  }
-
-  @Patch('conversations/:id/read')
-  @ApiOperation({ summary: 'Đánh dấu tin nhắn đã đọc' })
-  markAsRead(@Request() req, @Param('id') conversationId: number) {
-    const { user_id } = req.user;
-    return this.chatService.markMessagesAsRead(user_id, conversationId);
   }
 }
