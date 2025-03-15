@@ -225,4 +225,46 @@ export class ProductService {
 
     return product;
   }
+  // Add this method to the ProductService class
+
+  async getUserProducts(
+    userId: number,
+    status?: 'pending' | 'approved' | 'rejected',
+    page = 1,
+    limit = 10,
+  ) {
+    try {
+      const where: any = { user: { id: userId } };
+
+      // Add status filter if provided
+      if (status) {
+        where.status = status;
+      }
+
+      const skip = (page - 1) * limit;
+
+      const [products, total] = await this.productRepository.findAndCount({
+        where,
+        relations: ['category', 'brand'],
+        skip,
+        take: limit,
+        order: { id: 'DESC' }, // Sort by newest first
+      });
+
+      return {
+        data: products,
+        meta: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+          hasNextPage: page < Math.ceil(total / limit),
+          hasPreviousPage: page > 1,
+        },
+      };
+    } catch (error) {
+      console.error('Error fetching user products:', error);
+      throw new NotFoundException('Could not fetch user products');
+    }
+  }
 }
