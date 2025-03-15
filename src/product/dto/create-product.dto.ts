@@ -1,33 +1,77 @@
 import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsString,
+  IsNumber,
+  IsEnum,
+  IsArray,
+  IsOptional,
+  IsPositive,
+  IsUrl,
+  MinLength,
+  MaxLength,
+  ArrayMinSize,
+  Min,
+} from 'class-validator';
 
 export class CreateProductDto {
-  @ApiProperty({ description: 'Tên sản phẩm' })
+  @ApiProperty({ example: 'iPhone 12 Pro' })
+  @IsString()
+  @MinLength(3)
+  @MaxLength(100)
   title: string;
 
-  @ApiProperty({ description: 'Mô tả sản phẩm' })
+  @ApiProperty({ example: 'Like new iPhone 12 Pro, 128GB, Pacific Blue color' })
+  @IsString()
+  @MinLength(10)
+  @MaxLength(2000)
   description: string;
 
-  @ApiProperty({ description: 'Giá sản phẩm', example: 1000 })
+  @ApiProperty({ example: 799.99 })
+  @IsNumber()
+  @IsPositive()
   price: number;
 
-  @ApiProperty({ description: 'Danh sách URL ảnh', type: [String] })
+  @ApiProperty({
+    example: [
+      'http://127.0.0.1:9000/product-images/1647289410000-123456789.jpg',
+      'http://127.0.0.1:9000/product-images/1647289420000-987654321.jpg',
+    ],
+    description: 'Array of image URLs from MinIO storage',
+  })
+  @IsArray()
+  @IsUrl({}, { each: true })
+  @ArrayMinSize(1)
   images: string[];
 
-  @ApiProperty({ description: 'Tình trạng sản phẩm', enum: ['new', 'used'] })
+  @ApiProperty({ enum: ['new', 'used'], example: 'used' })
+  @IsEnum(['new', 'used'])
   condition: 'new' | 'used';
 
-  @ApiProperty({ description: 'ID danh mục' })
+  @ApiProperty({ example: 1 })
+  @IsNumber()
+  @Min(1)
   categoryId: number;
 
-  @ApiProperty({ description: 'ID thương hiệu' })
+  @ApiProperty({ example: 1 })
+  @IsNumber()
+  @Min(1)
   brandId: number;
 
-  @ApiProperty({ description: 'Địa chỉ', required: false })
+  @ApiProperty({ example: 'New York, NY', required: false })
+  @IsString()
+  @IsOptional()
+  @MaxLength(200)
   address?: string;
 
-  @ApiProperty({ description: 'Thời gian sử dụng', required: false })
+  @ApiProperty({ example: '6 months', required: false })
+  @IsString()
+  @IsOptional()
+  @MaxLength(50)
   usageTime?: string;
 
-  @ApiProperty({ description: 'Số lượng sản phẩm', required: false })
+  @ApiProperty({ example: 1, required: false })
+  @IsNumber()
+  @IsPositive()
+  @IsOptional()
   quantity?: number;
 }

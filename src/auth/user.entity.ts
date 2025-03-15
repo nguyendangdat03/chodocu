@@ -37,6 +37,9 @@ export class User {
   })
   status: string;
 
+  @Column({ nullable: true })
+  avatar_url: string;
+
   @CreateDateColumn()
   created_at: Date;
 

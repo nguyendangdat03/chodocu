@@ -17,7 +17,6 @@ export class AuthService {
   ) {}
 
   // Đăng ký tài khoản mới
-  // Đăng ký tài khoản mới
   async register(
     name: string,
     phoneNumber: string,
@@ -110,6 +109,7 @@ export class AuthService {
         email: user.email,
         role: user.role,
         status: user.status,
+        avatar_url: user.avatar_url,
       },
     };
   }
@@ -135,6 +135,7 @@ export class AuthService {
       email: user.email,
       role: user.role,
       status: user.status,
+      avatar_url: user.avatar_url,
       created_at: user.created_at,
       updated_at: user.updated_at,
     };
@@ -156,6 +157,7 @@ export class AuthService {
         'email',
         'role',
         'status',
+        'avatar_url',
         'created_at',
         'updated_at',
       ],
@@ -183,6 +185,7 @@ export class AuthService {
         'email',
         'role',
         'status',
+        'avatar_url',
         'created_at',
         'updated_at',
       ],
@@ -231,6 +234,107 @@ export class AuthService {
         email: user.email,
         role: user.role,
         status: user.status,
+        avatar_url: user.avatar_url,
+      },
+    };
+  }
+
+  // Cập nhật avatar cho người dùng
+  async updateUserAvatar(userId: number, avatarUrl: string) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found.');
+    }
+
+    // Extract object name from old avatar URL if it exists
+    let oldAvatarObjectName = null;
+    if (user.avatar_url) {
+      try {
+        const url = new URL(user.avatar_url);
+        const pathParts = url.pathname.split('/');
+        if (pathParts.length > 2) {
+          // The object name should be the last part of the path
+          oldAvatarObjectName = pathParts[pathParts.length - 1];
+        }
+      } catch (error) {
+        // If URL parsing fails, just ignore it
+        console.warn(`Failed to parse old avatar URL: ${user.avatar_url}`);
+      }
+    }
+
+    // Set the new avatar URL
+    user.avatar_url = avatarUrl;
+    await this.userRepository.save(user);
+
+    return {
+      message: 'Avatar updated successfully',
+      user: {
+        id: user.id,
+        name: user.name,
+        avatar_url: user.avatar_url,
+      },
+      oldAvatarObjectName,
+    };
+  }
+
+  async updateUserProfile(userId: number, updateData: any) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found.');
+    }
+
+    // Update name if provided
+    if (updateData.name) {
+      user.name = updateData.name;
+    }
+
+    // Update email if provided
+    if (updateData.email && updateData.email !== user.email) {
+      // Check if email already exists for another user
+      const existingUserWithEmail = await this.userRepository.findOne({
+        where: { email: updateData.email },
+      });
+
+      if (existingUserWithEmail && existingUserWithEmail.id !== userId) {
+        throw new BadRequestException(
+          'Email đã được đăng ký bởi người dùng khác.',
+        );
+      }
+
+      user.email = updateData.email;
+    }
+
+    // Update password if provided
+    if (updateData.password) {
+      // Validate password length and content
+      if (updateData.password.length < 7) {
+        throw new BadRequestException('Mật khẩu phải có ít nhất 7 ký tự.');
+      }
+
+      // Validate password contains both letters and numbers
+      if (!updateData.password.match(/^(?=.*[A-Za-z])(?=.*\d).+$/)) {
+        throw new BadRequestException(
+          'Mật khẩu phải bao gồm cả chữ cái và số.',
+        );
+      }
+
+      user.password = await bcrypt.hash(updateData.password, 10);
+    }
+
+    // Save the updated user
+    await this.userRepository.save(user);
+
+    return {
+      message: 'Thông tin tài khoản đã được cập nhật thành công',
+      user: {
+        id: user.id,
+        name: user.name,
+        phone_number: user.phone_number,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        avatar_url: user.avatar_url,
+        updated_at: user.updated_at,
       },
     };
   }
