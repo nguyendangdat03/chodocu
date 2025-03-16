@@ -8,7 +8,7 @@ async function bootstrap() {
 
   // Kích hoạt CORS
   app.enableCors({
-    origin: 'http://localhost:5173',
+    origin: ['http://localhost:5173', 'http://localhost:8888'],
     credentials: true,
   });
 

@@ -70,7 +70,7 @@ export class FileUploadController {
     }
 
     const uploadPromises = files.map((file) =>
-      this.minioService.uploadFile(file),
+      this.minioService.uploadFile(file, undefined, false),
     );
     const uploadedUrls = await Promise.all(uploadPromises);
 
@@ -119,14 +119,16 @@ export class FileUploadController {
       throw new BadRequestException('No avatar file uploaded');
     }
 
-    // Upload avatar to MinIO with a special prefix
-    const avatarObjectName = `avatars/user-${userId}-${Date.now()}.${file.originalname
+    // Generate avatar object name (without folder prefix since we're using a separate bucket)
+    const avatarObjectName = `user-${userId}-${Date.now()}.${file.originalname
       .split('.')
       .pop()}`;
 
+    // Upload avatar to separate avatar bucket
     const uploadedUrl = await this.minioService.uploadFile(
       file,
       avatarObjectName,
+      true, // isAvatar flag to use the avatar bucket
     );
 
     // Update user's avatar URL in database and get old avatar info
@@ -138,7 +140,10 @@ export class FileUploadController {
     // Delete old avatar if it exists
     if (updateResult.oldAvatarObjectName) {
       try {
-        await this.minioService.deleteFile(updateResult.oldAvatarObjectName);
+        await this.minioService.deleteFile(
+          updateResult.oldAvatarObjectName,
+          true,
+        );
       } catch (error) {
         // Log error but don't fail the request if old avatar deletion fails
         console.error(`Failed to delete old avatar: ${error.message}`);

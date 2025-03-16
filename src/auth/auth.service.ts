@@ -110,6 +110,7 @@ export class AuthService {
         role: user.role,
         status: user.status,
         avatar_url: user.avatar_url,
+        balance: user.balance, // Add this line
       },
     };
   }
@@ -121,7 +122,6 @@ export class AuthService {
     res.clearCookie('user_id', { httpOnly: true });
   }
 
-  // Lấy thông tin người dùng
   async getUserInfo(userId: number) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
@@ -136,6 +136,7 @@ export class AuthService {
       role: user.role,
       status: user.status,
       avatar_url: user.avatar_url,
+      balance: user.balance, // Add this line
       created_at: user.created_at,
       updated_at: user.updated_at,
     };
@@ -158,6 +159,7 @@ export class AuthService {
         'role',
         'status',
         'avatar_url',
+        'balance', // Add this line
         'created_at',
         'updated_at',
       ],
@@ -186,6 +188,7 @@ export class AuthService {
         'role',
         'status',
         'avatar_url',
+        'balance', // Add this line
         'created_at',
         'updated_at',
       ],
@@ -224,7 +227,6 @@ export class AuthService {
 
     user.status = newStatus;
     await this.userRepository.save(user);
-
     return {
       message: `Account status updated to ${newStatus}`,
       user: {
@@ -235,6 +237,7 @@ export class AuthService {
         role: user.role,
         status: user.status,
         avatar_url: user.avatar_url,
+        balance: user.balance, // Add this line
       },
     };
   }
@@ -276,7 +279,6 @@ export class AuthService {
       oldAvatarObjectName,
     };
   }
-
   async updateUserProfile(userId: number, updateData: any) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
@@ -306,6 +308,22 @@ export class AuthService {
 
     // Update password if provided
     if (updateData.password) {
+      // Check if currentPassword is provided
+      if (!updateData.currentPassword) {
+        throw new BadRequestException(
+          'Vui lòng cung cấp mật khẩu hiện tại để thay đổi mật khẩu.',
+        );
+      }
+
+      // Verify if the current password is correct
+      const isCurrentPasswordValid = await bcrypt.compare(
+        updateData.currentPassword,
+        user.password,
+      );
+      if (!isCurrentPasswordValid) {
+        throw new BadRequestException('Mật khẩu hiện tại không chính xác.');
+      }
+
       // Validate password length and content
       if (updateData.password.length < 7) {
         throw new BadRequestException('Mật khẩu phải có ít nhất 7 ký tự.');

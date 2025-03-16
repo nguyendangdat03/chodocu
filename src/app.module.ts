@@ -10,6 +10,7 @@ import { AuthMiddleware } from './auth/auth.middleware';
 import { PublicModule } from './public/public.module';
 import { ChatModule } from './chat/chat.module';
 import { MinioModule } from './minio/minio.module';
+import { TransactionModule } from './transaction/transaction.module';
 import * as cookieParser from 'cookie-parser';
 
 @Module({
@@ -37,6 +38,7 @@ import * as cookieParser from 'cookie-parser';
     AdminModule,
     PublicModule,
     ChatModule,
+    TransactionModule, // Add TransactionModule
   ],
 })
 export class AppModule implements NestModule {
@@ -48,6 +50,7 @@ export class AppModule implements NestModule {
       'admin', // API quản lý hãng
       'chat', // Chat routes
       'upload', // Include upload routes to middleware
+      'transactions', // Add transactions routes to middleware
     );
   }
 }
