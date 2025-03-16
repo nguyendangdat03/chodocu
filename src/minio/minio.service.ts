@@ -5,7 +5,8 @@ import * as Minio from 'minio';
 @Injectable()
 export class MinioService {
   private readonly minioClient: Minio.Client;
-  private readonly bucketName: string;
+  private readonly productBucketName: string;
+  private readonly avatarBucketName: string;
   private readonly logger = new Logger('MinioService');
 
   constructor(private configService: ConfigService) {
@@ -18,22 +19,39 @@ export class MinioService {
       secretKey: this.configService.get('MINIO_SECRET_KEY', 'minioadmin'),
     });
 
-    this.bucketName = this.configService.get(
-      'MINIO_BUCKET_NAME',
+    this.productBucketName = this.configService.get(
+      'MINIO_PRODUCT_BUCKET_NAME',
       'product-images',
     );
 
-    // Create bucket if it doesn't exist
-    this.initializeBucket();
+    this.avatarBucketName = this.configService.get(
+      'MINIO_AVATAR_BUCKET_NAME',
+      'user-avatars',
+    );
+
+    // Create buckets if they don't exist
+    this.initializeBuckets();
   }
 
-  private async initializeBucket(): Promise<void> {
+  private async initializeBuckets(): Promise<void> {
     try {
-      const bucketExists = await this.minioClient.bucketExists(this.bucketName);
+      // Initialize product images bucket
+      await this.initializeBucket(this.productBucketName);
+
+      // Initialize avatars bucket
+      await this.initializeBucket(this.avatarBucketName);
+    } catch (error) {
+      this.logger.error(`Error initializing buckets: ${error.message}`);
+    }
+  }
+
+  private async initializeBucket(bucketName: string): Promise<void> {
+    try {
+      const bucketExists = await this.minioClient.bucketExists(bucketName);
 
       if (!bucketExists) {
-        await this.minioClient.makeBucket(this.bucketName, 'us-east-1');
-        this.logger.log(`Bucket '${this.bucketName}' created successfully`);
+        await this.minioClient.makeBucket(bucketName, 'us-east-1');
+        this.logger.log(`Bucket '${bucketName}' created successfully`);
 
         // Set bucket policy to public read
         const policy = {
@@ -43,26 +61,33 @@ export class MinioService {
               Effect: 'Allow',
               Principal: { AWS: ['*'] },
               Action: ['s3:GetObject'],
-              Resource: [`arn:aws:s3:::${this.bucketName}/*`],
+              Resource: [`arn:aws:s3:::${bucketName}/*`],
             },
           ],
         };
 
         await this.minioClient.setBucketPolicy(
-          this.bucketName,
+          bucketName,
           JSON.stringify(policy),
         );
       }
     } catch (error) {
-      this.logger.error(`Error initializing bucket: ${error.message}`);
+      this.logger.error(
+        `Error initializing bucket ${bucketName}: ${error.message}`,
+      );
     }
   }
 
   async uploadFile(
     file: Express.Multer.File,
     objectName?: string,
+    isAvatar: boolean = false,
   ): Promise<string> {
     try {
+      const bucketName = isAvatar
+        ? this.avatarBucketName
+        : this.productBucketName;
+
       // Generate a unique object name if not provided
       if (!objectName) {
         const fileExt = file.originalname.split('.').pop();
@@ -71,7 +96,7 @@ export class MinioService {
 
       // Upload the file to MinIO
       await this.minioClient.putObject(
-        this.bucketName,
+        bucketName,
         objectName,
         file.buffer,
         file.size,
@@ -81,34 +106,44 @@ export class MinioService {
       );
 
       // Return the URL to access the file
-      return this.getFileUrl(objectName);
+      return this.getFileUrl(objectName, bucketName);
     } catch (error) {
       this.logger.error(`Failed to upload file: ${error.message}`);
       throw new Error(`Failed to upload file: ${error.message}`);
     }
   }
 
-  getFileUrl(objectName: string): string {
+  getFileUrl(objectName: string, bucketName?: string): string {
     const endpoint = this.configService.get('MINIO_ENDPOINT', '127.0.0.1');
     const port = this.configService.get('MINIO_PORT', '9000');
     const useSSL = this.configService.get('MINIO_USE_SSL', 'false') === 'true';
     const protocol = useSSL ? 'https' : 'http';
 
-    return `${protocol}://${endpoint}:${port}/${this.bucketName}/${objectName}`;
+    const bucket = bucketName || this.productBucketName;
+
+    return `${protocol}://${endpoint}:${port}/${bucket}/${objectName}`;
   }
 
-  getMinioPublicEndpoint(): string {
+  getMinioPublicEndpoint(bucketName?: string): string {
     const endpoint = this.configService.get('MINIO_ENDPOINT', '127.0.0.1');
     const port = this.configService.get('MINIO_PORT', '9000');
     const useSSL = this.configService.get('MINIO_USE_SSL', 'false') === 'true';
     const protocol = useSSL ? 'https' : 'http';
 
-    return `${protocol}://${endpoint}:${port}/${this.bucketName}`;
+    const bucket = bucketName || this.productBucketName;
+
+    return `${protocol}://${endpoint}:${port}/${bucket}`;
   }
 
-  async deleteFile(objectName: string): Promise<void> {
+  async deleteFile(
+    objectName: string,
+    isAvatar: boolean = false,
+  ): Promise<void> {
     try {
-      await this.minioClient.removeObject(this.bucketName, objectName);
+      const bucketName = isAvatar
+        ? this.avatarBucketName
+        : this.productBucketName;
+      await this.minioClient.removeObject(bucketName, objectName);
     } catch (error) {
       this.logger.error(`Failed to delete file: ${error.message}`);
       throw new Error(`Failed to delete file: ${error.message}`);

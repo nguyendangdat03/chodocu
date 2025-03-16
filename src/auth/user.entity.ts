@@ -40,6 +40,14 @@ export class User {
   @Column({ nullable: true })
   avatar_url: string;
 
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    default: 0,
+  })
+  balance: number;
+
   @CreateDateColumn()
   created_at: Date;
 
