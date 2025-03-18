@@ -11,6 +11,7 @@ import {
   ForbiddenException,
   Patch,
   Query,
+  BadRequestException,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
@@ -20,6 +21,7 @@ import { LoginDto } from './dto/login.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { PaginationDto } from './dto/pagination.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserStatusRoleDto } from './dto/update-status-role.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -88,16 +90,17 @@ export class AuthController {
     return res.send({ message: 'Logout successful' });
   }
 
+  // Cập nhật API hiện có để chỉ cho admin quyền truy cập
   @Patch('users/:id/status')
-  @ApiOperation({ summary: 'Update user status' })
+  @ApiOperation({ summary: 'Update user status (Admin only)' })
   async updateUserStatus(
     @Param('id') userId: number,
     @Body() updateStatusDto: UpdateStatusDto,
     @Req() req: Request,
   ) {
     const role = req['user']?.role || req.cookies['role'];
-    if (role !== 'admin' && role !== 'moderator') {
-      throw new ForbiddenException('Admin or Moderator access required');
+    if (role !== 'admin') {
+      throw new ForbiddenException('Admin access required');
     }
     return this.authService.updateAccountStatus(userId, updateStatusDto.status);
   }
@@ -139,5 +142,31 @@ export class AuthController {
 
     const { page = 1, limit = 20 } = paginationDto;
     return this.authService.getPaginatedUsers(page, limit);
+  }
+
+  @Patch('users/:id')
+  @ApiOperation({ summary: 'Update user status and role (Admin only)' })
+  @ApiResponse({ status: 200, description: 'User updated successfully' })
+  async updateUserStatusRole(
+    @Param('id') userId: number,
+    @Body() updateUserStatusRoleDto: UpdateUserStatusRoleDto,
+    @Req() req: Request,
+  ) {
+    const role = req['user']?.role || req.cookies['role'];
+    if (role !== 'admin') {
+      throw new ForbiddenException('Admin access required');
+    }
+
+    // Kiểm tra nếu cả hai trường đều không được cung cấp
+    if (!updateUserStatusRoleDto.status && !updateUserStatusRoleDto.role) {
+      throw new BadRequestException(
+        'At least one field (status or role) is required',
+      );
+    }
+
+    return this.authService.updateUserStatusRole(
+      userId,
+      updateUserStatusRoleDto,
+    );
   }
 }

@@ -1,5 +1,5 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
-import { ApiTags, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiQuery, ApiParam } from '@nestjs/swagger';
 import { ProductService } from '../product/product.service';
 import { CategoryService } from '../category/category.service';
 import { BrandService } from '../brand/brand.service';
@@ -49,5 +49,48 @@ export class PublicController {
   @Get('products/:id')
   async getProductById(@Param('id') id: number) {
     return this.productService.getProductById(id);
+  }
+  @Get('categories/:categoryId/products')
+  @ApiParam({ name: 'categoryId', type: Number })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  async getProductsByCategory(
+    @Param('categoryId') categoryId: number,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+  ) {
+    // Convert string parameters to numbers and provide defaults
+    const categoryIdNum = parseInt(categoryId.toString(), 10);
+    const pageNum = page ? parseInt(page.toString(), 10) : 1;
+    const limitNum = limit ? parseInt(limit.toString(), 10) : 10;
+
+    // Pass the pagination parameters to the service
+    return this.productService.getProductsByCategory(
+      categoryIdNum,
+      pageNum,
+      limitNum,
+    );
+  }
+
+  @Get('parent-categories/:categoryId/products')
+  @ApiParam({ name: 'categoryId', type: Number })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  async getProductsByParentCategory(
+    @Param('categoryId') categoryId: number,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+  ) {
+    // Convert string parameters to numbers and provide defaults
+    const categoryIdNum = parseInt(categoryId.toString(), 10);
+    const pageNum = page ? parseInt(page.toString(), 10) : 1;
+    const limitNum = limit ? parseInt(limit.toString(), 10) : 10;
+
+    // Pass the pagination parameters to the service
+    return this.productService.getProductsByParentCategory(
+      categoryIdNum,
+      pageNum,
+      limitNum,
+    );
   }
 }

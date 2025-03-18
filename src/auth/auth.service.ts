@@ -242,6 +242,47 @@ export class AuthService {
     };
   }
 
+  // Thêm phương thức mới vào AuthService
+
+  // Cập nhật trạng thái và quyền tài khoản
+  async updateUserStatusRole(
+    userId: number,
+    updateData: {
+      status?: 'active' | 'inactive' | 'pending';
+      role?: 'user' | 'moderator' | 'admin';
+    },
+  ) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found.');
+    }
+
+    // Cập nhật trạng thái nếu được cung cấp
+    if (updateData.status) {
+      user.status = updateData.status;
+    }
+
+    // Cập nhật quyền nếu được cung cấp
+    if (updateData.role) {
+      user.role = updateData.role;
+    }
+
+    await this.userRepository.save(user);
+    return {
+      message: `User information updated successfully`,
+      user: {
+        id: user.id,
+        name: user.name,
+        phone_number: user.phone_number,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        avatar_url: user.avatar_url,
+        balance: user.balance,
+      },
+    };
+  }
+
   // Cập nhật avatar cho người dùng
   async updateUserAvatar(userId: number, avatarUrl: string) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
