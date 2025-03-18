@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Product } from './product.entity';
 import { Category } from '../category/category.entity';
 import { Brand } from '../brand/brand.entity';
@@ -352,5 +352,97 @@ export class ProductService {
       console.error('Error fetching user products:', error);
       throw new NotFoundException('Could not fetch user products');
     }
+  }
+  async getProductsByCategory(
+    categoryId: number,
+    page = 1,
+    limit = 10,
+  ): Promise<{ data: Product[]; meta: any }> {
+    const skip = (page - 1) * limit;
+
+    const [products, total] = await this.productRepository.findAndCount({
+      where: {
+        category: { id: categoryId },
+        status: 'approved', // Only return approved products for public API
+      },
+      relations: ['user', 'category', 'brand'],
+      skip,
+      take: limit,
+      order: { id: 'DESC' },
+    });
+
+    // Remove sensitive user information
+    const sanitizedProducts = products.map((product) => {
+      if (product.user) {
+        const { password, role, ...userInfo } = product.user;
+        product.user = userInfo as any;
+      }
+      return product;
+    });
+
+    return {
+      data: sanitizedProducts,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPreviousPage: page > 1,
+      },
+    };
+  }
+
+  // Get products from parent category and all its child categories
+  async getProductsByParentCategory(
+    parentCategoryId: number,
+    page = 1,
+    limit = 10,
+  ): Promise<{ data: Product[]; meta: any }> {
+    const skip = (page - 1) * limit;
+
+    // First, get all child categories of the parent category
+    const childCategories = await this.categoryRepository.find({
+      where: { parent_id: parentCategoryId },
+    });
+
+    // Create array of category IDs including parent and all children
+    const categoryIds = [
+      parentCategoryId,
+      ...childCategories.map((cat) => cat.id),
+    ];
+
+    // Query for products in any of these categories
+    const [products, total] = await this.productRepository.findAndCount({
+      where: {
+        category: { id: In(categoryIds) },
+        status: 'approved',
+      },
+      relations: ['user', 'category', 'brand'],
+      skip,
+      take: limit,
+      order: { id: 'DESC' },
+    });
+
+    // Remove sensitive user information
+    const sanitizedProducts = products.map((product) => {
+      if (product.user) {
+        const { password, role, ...userInfo } = product.user;
+        product.user = userInfo as any;
+      }
+      return product;
+    });
+
+    return {
+      data: sanitizedProducts,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPreviousPage: page > 1,
+      },
+    };
   }
 }
