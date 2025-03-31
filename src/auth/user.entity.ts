@@ -48,6 +48,16 @@ export class User {
   })
   balance: number;
 
+  @Column({
+    type: 'enum',
+    enum: ['standard', 'premium'],
+    default: 'standard',
+  })
+  subscription_type: string;
+
+  @Column({ nullable: true })
+  subscription_expiry: Date;
+
   @CreateDateColumn()
   created_at: Date;
 
