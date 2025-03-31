@@ -1,77 +1,67 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  IsString,
+  IsNotEmpty,
   IsNumber,
-  IsEnum,
   IsArray,
+  IsString,
+  IsEnum,
   IsOptional,
-  IsPositive,
-  IsUrl,
-  MinLength,
-  MaxLength,
-  ArrayMinSize,
+  IsBoolean,
   Min,
 } from 'class-validator';
 
 export class CreateProductDto {
-  @ApiProperty({ example: 'iPhone 12 Pro' })
+  @ApiProperty({ description: 'Product title' })
+  @IsNotEmpty()
   @IsString()
-  @MinLength(3)
-  @MaxLength(100)
   title: string;
 
-  @ApiProperty({ example: 'Like new iPhone 12 Pro, 128GB, Pacific Blue color' })
+  @ApiProperty({ description: 'Product description' })
+  @IsNotEmpty()
   @IsString()
-  @MinLength(10)
-  @MaxLength(2000)
   description: string;
 
-  @ApiProperty({ example: 799.99 })
+  @ApiProperty({ description: 'Product price' })
+  @IsNotEmpty()
   @IsNumber()
-  @IsPositive()
+  @Min(0)
   price: number;
 
-  @ApiProperty({
-    example: [
-      'http://127.0.0.1:9000/product-images/1647289410000-123456789.jpg',
-      'http://127.0.0.1:9000/product-images/1647289420000-987654321.jpg',
-    ],
-    description: 'Array of image URLs from MinIO storage',
-  })
+  @ApiProperty({ description: 'Product images URLs', type: [String] })
   @IsArray()
-  @IsUrl({}, { each: true })
-  @ArrayMinSize(1)
+  @IsString({ each: true })
   images: string[];
 
-  @ApiProperty({ enum: ['new', 'used'], example: 'used' })
+  @ApiProperty({ description: 'Product condition', enum: ['new', 'used'] })
   @IsEnum(['new', 'used'])
   condition: 'new' | 'used';
 
-  @ApiProperty({ example: 1 })
+  @ApiProperty({ description: 'Category ID' })
   @IsNumber()
-  @Min(1)
   categoryId: number;
 
-  @ApiProperty({ example: 1 })
+  @ApiProperty({ description: 'Brand ID' })
   @IsNumber()
-  @Min(1)
   brandId: number;
 
-  @ApiProperty({ example: 'New York, NY', required: false })
-  @IsString()
+  @ApiPropertyOptional({ description: 'Product address/location' })
   @IsOptional()
-  @MaxLength(200)
+  @IsString()
   address?: string;
 
-  @ApiProperty({ example: '6 months', required: false })
-  @IsString()
+  @ApiPropertyOptional({ description: 'Usage time (for used products)' })
   @IsOptional()
-  @MaxLength(50)
+  @IsString()
   usageTime?: string;
 
-  @ApiProperty({ example: 1, required: false })
-  @IsNumber()
-  @IsPositive()
+  @ApiPropertyOptional({ description: 'Product quantity', default: 1 })
   @IsOptional()
+  @IsNumber()
+  @Min(1)
   quantity?: number;
+
+  @ApiPropertyOptional({ description: 'Is premium listing', default: false })
+  @IsOptional()
+  @IsBoolean()
+  isPremium?: boolean;
 }

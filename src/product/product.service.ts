@@ -2,14 +2,16 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, LessThan, Repository } from 'typeorm';
 import { Product } from './product.entity';
 import { Category } from '../category/category.entity';
 import { Brand } from '../brand/brand.entity';
 import { User } from '../auth/user.entity';
 import { MinioService } from '../minio/minio.service';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class ProductService {
@@ -22,7 +24,7 @@ export class ProductService {
     private readonly brandRepository: Repository<Brand>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
-    private readonly minioService: MinioService, // Inject MinioService
+    private readonly minioService: MinioService,
   ) {}
 
   async createProduct(
@@ -38,6 +40,7 @@ export class ProductService {
       address?: string;
       usageTime?: string;
       quantity?: number;
+      isPremium?: boolean;
     },
   ) {
     const category = await this.categoryRepository.findOne({
@@ -53,8 +56,32 @@ export class ProductService {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
+    // Check active product count for standard users
+    if (user.subscription_type === 'standard') {
+      const activeProductCount = await this.productRepository.count({
+        where: {
+          user: { id: userId },
+          status: In(['pending', 'approved']),
+        },
+      });
+
+      if (activeProductCount >= 15) {
+        throw new BadRequestException(
+          'Bạn đã đạt giới hạn 15 tin đăng. Vui lòng nâng cấp lên gói Premium hoặc xóa bớt tin đăng.',
+        );
+      }
+    }
+
     // Validate image URLs (should be from MinIO)
     this.validateMinioImageUrls(productData.images);
+
+    // Calculate expiry date (15 days for premium users, 7 days for standard users)
+    const expiryDate = new Date();
+    if (user.subscription_type === 'premium') {
+      expiryDate.setDate(expiryDate.getDate() + 15); // 15 days for premium users
+    } else {
+      expiryDate.setDate(expiryDate.getDate() + 7); // 7 days for standard users
+    }
 
     const product = this.productRepository.create({
       ...productData,
@@ -62,6 +89,8 @@ export class ProductService {
       brand,
       user,
       status: 'pending',
+      expiry_date: expiryDate,
+      is_premium: productData.isPremium || false,
     });
 
     return this.productRepository.save(product);
@@ -116,6 +145,13 @@ export class ProductService {
       );
     }
 
+    // If status is expired, don't allow updates
+    if (product.status === 'expired') {
+      throw new BadRequestException(
+        'Tin đăng đã hết hạn. Vui lòng gia hạn trước khi cập nhật.',
+      );
+    }
+
     // If updating images, validate the new images
     if (productData.images) {
       this.validateMinioImageUrls(productData.images);
@@ -150,6 +186,15 @@ export class ProductService {
       productData.condition
     ) {
       productData.status = 'pending';
+
+      // Reset expiry date based on subscription type
+      const expiryDate = new Date();
+      if (product.user.subscription_type === 'premium') {
+        expiryDate.setDate(expiryDate.getDate() + 15); // 15 days for premium users
+      } else {
+        expiryDate.setDate(expiryDate.getDate() + 7); // 7 days for standard users
+      }
+      productData.expiry_date = expiryDate;
     }
 
     Object.assign(product, productData);
@@ -186,7 +231,6 @@ export class ProductService {
     return { message: 'Product deleted successfully', productId };
   }
 
-  // Rest of the methods remain unchanged
   async updateProductStatus(
     productId: number,
     userId: number,
@@ -236,18 +280,21 @@ export class ProductService {
     return { message: `Product ${status} successfully`, product };
   }
 
-  async getAllProducts(page = 1, limit = 10) {
+  async getAllProducts(page = 1, limit = 10, includeExpired = false) {
     try {
       const skip = (page - 1) * limit;
 
+      const whereCondition = includeExpired
+        ? {}
+        : { status: In(['pending', 'approved', 'rejected']) };
+
       const [products, total] = await this.productRepository.findAndCount({
+        where: whereCondition,
         relations: ['user', 'category', 'brand'],
         skip,
         take: limit,
         order: { id: 'DESC' },
       });
-
-      console.log('Fetched Products:', products);
 
       return {
         data: products,
@@ -265,7 +312,6 @@ export class ProductService {
       throw new NotFoundException('Could not fetch products');
     }
   }
-
   async getApprovedProducts(
     page = 1,
     limit = 10,
@@ -313,10 +359,9 @@ export class ProductService {
 
     return product;
   }
-
   async getUserProducts(
     userId: number,
-    status?: 'pending' | 'approved' | 'rejected',
+    status?: 'pending' | 'approved' | 'rejected' | 'expired' | 'hidden',
     page = 1,
     limit = 10,
   ) {
@@ -353,6 +398,60 @@ export class ProductService {
       throw new NotFoundException('Could not fetch user products');
     }
   }
+  async renewProduct(productId: number, userId: number) {
+    // Find the product
+    const product = await this.productRepository.findOne({
+      where: { id: productId, user: { id: userId } },
+      relations: ['user'],
+    });
+
+    if (!product) {
+      throw new ForbiddenException(
+        'You do not have permission to renew this product',
+      );
+    }
+
+    // Check if the product is expired
+    if (product.status !== 'expired') {
+      throw new BadRequestException('Only expired products can be renewed');
+    }
+
+    // Check if user has reached the product limit (for standard users)
+    if (product.user.subscription_type === 'standard') {
+      const activeProductCount = await this.productRepository.count({
+        where: {
+          user: { id: userId },
+          status: In(['pending', 'approved']),
+        },
+      });
+
+      if (activeProductCount >= 15) {
+        throw new BadRequestException(
+          'Bạn đã đạt giới hạn 15 tin đăng. Vui lòng nâng cấp lên gói Premium hoặc xóa bớt tin đăng.',
+        );
+      }
+    }
+
+    // Set new expiry date based on subscription type
+    const expiryDate = new Date();
+    if (product.user.subscription_type === 'premium') {
+      expiryDate.setDate(expiryDate.getDate() + 15); // 15 days for premium users
+    } else {
+      expiryDate.setDate(expiryDate.getDate() + 7); // 7 days for standard users
+    }
+
+    // Update product
+    product.status = 'pending'; // Reset to pending for review
+    product.expiry_date = expiryDate;
+
+    await this.productRepository.save(product);
+
+    return {
+      message: 'Product renewed successfully',
+      expiryDate: product.expiry_date,
+    };
+  }
+  // Methods for category-related product fetching
   async getProductsByCategory(
     categoryId: number,
     page = 1,
@@ -393,7 +492,6 @@ export class ProductService {
     };
   }
 
-  // Get products from parent category and all its child categories
   async getProductsByParentCategory(
     parentCategoryId: number,
     page = 1,
@@ -443,6 +541,100 @@ export class ProductService {
         hasNextPage: page < Math.ceil(total / limit),
         hasPreviousPage: page > 1,
       },
+    };
+  }
+  // Thêm đoạn code này vào ProductService class (thêm vào cuối class)
+
+  // Cron job để kiểm tra và cập nhật trạng thái các tin đăng đã hết hạn
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async checkExpiredProducts() {
+    const now = new Date();
+
+    try {
+      // Tìm các tin đăng có trạng thái "approved" nhưng đã hết hạn
+      const expiredProducts = await this.productRepository.find({
+        where: {
+          status: 'approved',
+          expiry_date: LessThan(now),
+        },
+      });
+
+      if (expiredProducts.length > 0) {
+        console.log(
+          `Đã tìm thấy ${expiredProducts.length} tin đăng đã hết hạn`,
+        );
+
+        // Cập nhật trạng thái của tất cả các tin đăng đã hết hạn
+        await Promise.all(
+          expiredProducts.map(async (product) => {
+            product.status = 'expired';
+            return this.productRepository.save(product);
+          }),
+        );
+
+        console.log('Đã cập nhật trạng thái các tin đăng hết hạn thành công');
+      }
+    } catch (error) {
+      console.error('Lỗi khi kiểm tra tin đăng hết hạn:', error);
+    }
+  }
+  async hideProduct(productId: number, userId: number) {
+    const product = await this.productRepository.findOne({
+      where: { id: productId, user: { id: userId } },
+    });
+
+    if (!product) {
+      throw new ForbiddenException(
+        'You do not have permission to hide this product',
+      );
+    }
+
+    // Only approved products can be hidden
+    if (product.status !== 'approved') {
+      throw new BadRequestException('Only approved products can be hidden');
+    }
+
+    // Update product status to hidden
+    product.status = 'hidden';
+    await this.productRepository.save(product);
+
+    return {
+      message: 'Product hidden successfully',
+      productId,
+    };
+  }
+
+  async showProduct(productId: number, userId: number) {
+    const product = await this.productRepository.findOne({
+      where: { id: productId, user: { id: userId } },
+    });
+
+    if (!product) {
+      throw new ForbiddenException(
+        'You do not have permission to show this product',
+      );
+    }
+
+    // Only hidden products can be shown
+    if (product.status !== 'hidden') {
+      throw new BadRequestException('Only hidden products can be shown');
+    }
+
+    // Check if the product is expired
+    const now = new Date();
+    if (product.expiry_date && product.expiry_date < now) {
+      throw new BadRequestException(
+        'This product has expired. Please renew it first.',
+      );
+    }
+
+    // Update product status back to approved
+    product.status = 'approved';
+    await this.productRepository.save(product);
+
+    return {
+      message: 'Product is now visible',
+      productId,
     };
   }
 }

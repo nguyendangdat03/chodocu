@@ -42,10 +42,16 @@ export class Product {
 
   @Column({
     type: 'enum',
-    enum: ['pending', 'approved', 'rejected'],
+    enum: ['pending', 'approved', 'rejected', 'expired', 'hidden'],
     default: 'pending',
   })
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'expired' | 'hidden';
+
+  @Column({ nullable: true })
+  expiry_date: Date; // Ngày hết hạn hiển thị
+
+  @Column({ default: false })
+  is_premium: boolean; // Đánh dấu tin đăng cao cấp
 
   @ManyToOne(() => Category)
   @JoinColumn({ name: 'category_id' })
