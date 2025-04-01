@@ -9,95 +9,139 @@ import {
   ParseIntPipe,
   BadRequestException,
   Logger,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiBearerAuth,
+  ApiCookieAuth,
+} from '@nestjs/swagger';
 import { SubscriptionService } from './subscription.service';
+import { SubscriptionPackageService } from './subscription-package.service';
 import { Request } from 'express';
-
-class UpgradeToPremiumDto {
-  months: number;
-}
+import {
+  CreateSubscriptionPackageDto,
+  UpdateSubscriptionPackageDto,
+} from './dto/subscription-package.dto';
+import {
+  PurchaseSubscriptionDto,
+  SubscriptionDetailsResponseDto,
+  SubscriptionResponseDto,
+  BoostProductDto,
+  BoostProductResponseDto,
+  UpgradeToPremiumDto,
+  LegacyUpgradeResponseDto,
+} from './dto/subscription-user.dto';
 
 @ApiTags('subscriptions')
+@ApiCookieAuth()
 @Controller('subscriptions')
+@UsePipes(new ValidationPipe({ transform: true }))
 export class SubscriptionController {
   private readonly logger = new Logger(SubscriptionController.name);
 
-  constructor(private readonly subscriptionService: SubscriptionService) {}
+  constructor(
+    private readonly subscriptionService: SubscriptionService,
+    private readonly packageService: SubscriptionPackageService,
+  ) {}
 
-  @Post('upgrade')
-  @ApiOperation({ summary: 'Upgrade to premium subscription' })
+  @Get('packages')
+  @ApiOperation({ summary: 'Lấy danh sách gói đăng ký' })
   @ApiResponse({
     status: 200,
-    description: 'Subscription upgraded successfully',
+    description: 'Trả về danh sách gói đăng ký có sẵn',
+    type: [CreateSubscriptionPackageDto],
   })
-  @ApiBody({ type: UpgradeToPremiumDto })
-  async upgradeToPremium(
-    @Body() upgradeToPremiumDto: UpgradeToPremiumDto,
+  async getAllPackages() {
+    return this.packageService.getAllPackages();
+  }
+
+  @Post('purchase')
+  @ApiOperation({ summary: 'Mua gói đăng ký' })
+  @ApiResponse({
+    status: 200,
+    description: 'Mua gói đăng ký thành công',
+    type: SubscriptionResponseDto,
+  })
+  async purchaseSubscription(
+    @Body() purchaseDto: PurchaseSubscriptionDto,
     @Req() req: Request,
-  ) {
+  ): Promise<SubscriptionResponseDto> {
     const userId = req.cookies['user_id'];
     if (!userId) {
-      throw new UnauthorizedException('Not logged in');
-    }
-
-    // Validate months
-    if (upgradeToPremiumDto.months < 1 || upgradeToPremiumDto.months > 12) {
-      throw new BadRequestException('Months must be between 1 and 12');
+      throw new UnauthorizedException('Chưa đăng nhập');
     }
 
     try {
-      const user = await this.subscriptionService.upgradeToPremuim(
+      const subscription = await this.subscriptionService.purchaseSubscription(
         parseInt(userId),
-        upgradeToPremiumDto.months,
-      );
-
-      this.logger.log(
-        `Upgraded user ${userId} to premium for ${upgradeToPremiumDto.months} months. New balance: ${user.balance}`,
+        purchaseDto.packageId,
       );
 
       return {
-        message: `Subscription upgraded to Premium for ${upgradeToPremiumDto.months} months`,
-        subscriptionType: user.subscription_type,
-        subscriptionExpiry: user.subscription_expiry,
-        balance: user.balance, // Include the updated balance in the response
+        message: `Đã mua thành công gói ${subscription.package.name}`,
+        subscription: {
+          packageName: subscription.package.name,
+          expiryDate: subscription.expiry_date,
+          remainingBoosts: subscription.remaining_boosts,
+        },
+        balance: subscription.user.balance,
       };
     } catch (error) {
-      this.logger.error(`Error upgrading to premium: ${error.message}`);
+      this.logger.error(`Lỗi khi mua gói đăng ký: ${error.message}`);
       throw error;
     }
   }
 
-  @Post('downgrade')
-  @ApiOperation({ summary: 'Downgrade to standard subscription' })
+  @Post('boost-product')
+  @ApiOperation({ summary: 'Đẩy tin sản phẩm' })
   @ApiResponse({
     status: 200,
-    description: 'Subscription downgraded successfully',
+    description: 'Đẩy tin thành công',
+    type: BoostProductResponseDto,
   })
-  async downgradeToStandard(@Req() req: Request) {
+  async boostProduct(
+    @Body() boostDto: BoostProductDto,
+    @Req() req: Request,
+  ): Promise<BoostProductResponseDto> {
     const userId = req.cookies['user_id'];
     if (!userId) {
-      throw new UnauthorizedException('Not logged in');
+      throw new UnauthorizedException('Chưa đăng nhập');
     }
 
-    const user = await this.subscriptionService.downgradeToStandard(
-      parseInt(userId),
-    );
+    try {
+      const result = await this.subscriptionService.boostProduct(
+        parseInt(userId),
+        boostDto.productId,
+      );
 
-    return {
-      message: 'Subscription downgraded to Standard',
-      subscriptionType: user.subscription_type,
-      balance: user.balance, // Include balance in the response
-    };
+      return {
+        message: 'Đẩy tin thành công',
+        expiryDate: result.expiry_date,
+      };
+    } catch (error) {
+      this.logger.error(`Lỗi khi đẩy tin: ${error.message}`);
+      throw error;
+    }
   }
 
   @Get('details')
-  @ApiOperation({ summary: 'Get current user subscription details' })
-  @ApiResponse({ status: 200, description: 'Returns subscription details' })
-  async getSubscriptionDetails(@Req() req: Request) {
+  @ApiOperation({ summary: 'Lấy thông tin chi tiết gói đăng ký' })
+  @ApiResponse({
+    status: 200,
+    description: 'Trả về thông tin chi tiết gói đăng ký',
+    type: SubscriptionDetailsResponseDto,
+  })
+  async getSubscriptionDetails(
+    @Req() req: Request,
+  ): Promise<SubscriptionDetailsResponseDto> {
     const userId = req.cookies['user_id'];
     if (!userId) {
-      throw new UnauthorizedException('Not logged in');
+      throw new UnauthorizedException('Chưa đăng nhập');
     }
 
     return this.subscriptionService.getUserSubscriptionDetails(
@@ -105,40 +149,130 @@ export class SubscriptionController {
     );
   }
 
-  // Admin endpoint to manage user subscriptions
-  @Post('user/:userId/upgrade')
-  @ApiOperation({ summary: 'Upgrade a user to premium (Admin only)' })
+  // Các API Legacy
+  @Post('upgrade')
+  @ApiOperation({ summary: 'Nâng cấp lên gói Premium (Legacy)' })
   @ApiResponse({
     status: 200,
-    description: 'User subscription upgraded successfully',
+    description: 'Nâng cấp thành công',
+    type: LegacyUpgradeResponseDto,
   })
-  async adminUpgradeUser(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Body() upgradeToPremiumDto: UpgradeToPremiumDto,
+  async upgradeToPremium(
+    @Body() upgradeDto: UpgradeToPremiumDto,
+    @Req() req: Request,
+  ): Promise<LegacyUpgradeResponseDto> {
+    const userId = req.cookies['user_id'];
+    if (!userId) {
+      throw new UnauthorizedException('Chưa đăng nhập');
+    }
+
+    try {
+      const user = await this.subscriptionService.upgradeToPremuim(
+        parseInt(userId),
+        upgradeDto.months,
+      );
+
+      this.logger.log(
+        `Đã nâng cấp người dùng ${userId} lên Premium trong ${upgradeDto.months} tháng. Số dư mới: ${user.balance}`,
+      );
+
+      return {
+        message: `Đã nâng cấp lên gói Premium trong ${upgradeDto.months} tháng`,
+        subscriptionType: user.subscription_type,
+        subscriptionExpiry: user.subscription_expiry,
+        balance: user.balance,
+      };
+    } catch (error) {
+      this.logger.error(`Lỗi khi nâng cấp lên Premium: ${error.message}`);
+      throw error;
+    }
+  }
+
+  @Post('downgrade')
+  @ApiOperation({ summary: 'Hạ cấp xuống gói Standard (Legacy)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Hạ cấp thành công',
+    type: LegacyUpgradeResponseDto,
+  })
+  async downgradeToStandard(
+    @Req() req: Request,
+  ): Promise<LegacyUpgradeResponseDto> {
+    const userId = req.cookies['user_id'];
+    if (!userId) {
+      throw new UnauthorizedException('Chưa đăng nhập');
+    }
+
+    const user = await this.subscriptionService.downgradeToStandard(
+      parseInt(userId),
+    );
+
+    return {
+      message: 'Đã hạ cấp xuống gói Standard',
+      subscriptionType: user.subscription_type,
+      subscriptionExpiry: null,
+      balance: user.balance,
+    };
+  }
+
+  // Các API dành cho Admin
+  @Post('packages')
+  @ApiOperation({ summary: 'Tạo gói đăng ký mới (Admin)' })
+  @ApiResponse({
+    status: 201,
+    description: 'Tạo gói thành công',
+    type: CreateSubscriptionPackageDto,
+  })
+  async createPackage(
+    @Body() packageData: CreateSubscriptionPackageDto,
     @Req() req: Request,
   ) {
     const role = req.cookies['role'];
     if (role !== 'admin') {
-      throw new UnauthorizedException('Admin access required');
+      throw new UnauthorizedException('Yêu cầu quyền Admin');
     }
 
-    // Validate months
-    if (upgradeToPremiumDto.months < 1 || upgradeToPremiumDto.months > 12) {
-      throw new BadRequestException('Months must be between 1 and 12');
+    return this.packageService.createPackage(packageData);
+  }
+
+  @Post('packages/:id')
+  @ApiOperation({ summary: 'Cập nhật gói đăng ký (Admin)' })
+  @ApiParam({ name: 'id', description: 'ID gói đăng ký' })
+  @ApiResponse({
+    status: 200,
+    description: 'Cập nhật gói thành công',
+    type: UpdateSubscriptionPackageDto,
+  })
+  async updatePackage(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() packageData: UpdateSubscriptionPackageDto,
+    @Req() req: Request,
+  ) {
+    const role = req.cookies['role'];
+    if (role !== 'admin') {
+      throw new UnauthorizedException('Yêu cầu quyền Admin');
     }
 
-    const user = await this.subscriptionService.upgradeToPremuim(
-      userId,
-      upgradeToPremiumDto.months,
-    );
+    return this.packageService.updatePackage(id, packageData);
+  }
 
-    return {
-      message: `User subscription upgraded to Premium for ${upgradeToPremiumDto.months} months`,
-      userId: user.id,
-      name: user.name,
-      subscriptionType: user.subscription_type,
-      subscriptionExpiry: user.subscription_expiry,
-      balance: user.balance, // Include the updated balance in the response
-    };
+  @Post('packages/:id/deactivate')
+  @ApiOperation({ summary: 'Vô hiệu hóa gói đăng ký (Admin)' })
+  @ApiParam({ name: 'id', description: 'ID gói đăng ký' })
+  @ApiResponse({
+    status: 200,
+    description: 'Vô hiệu hóa gói thành công',
+  })
+  async deactivatePackage(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request,
+  ) {
+    const role = req.cookies['role'];
+    if (role !== 'admin') {
+      throw new UnauthorizedException('Yêu cầu quyền Admin');
+    }
+
+    await this.packageService.deactivatePackage(id);
+    return { message: 'Đã vô hiệu hóa gói thành công' };
   }
 }
