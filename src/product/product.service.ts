@@ -77,11 +77,20 @@ export class ProductService {
 
     // Calculate expiry date (15 days for premium users, 7 days for standard users)
     const expiryDate = new Date();
-    if (user.subscription_type === 'premium') {
-      expiryDate.setDate(expiryDate.getDate() + 15); // 15 days for premium users
+    if (
+      user.subscription_type === 'premium' ||
+      user.subscription_type === 'pro'
+    ) {
+      expiryDate.setDate(expiryDate.getDate() + 15); // 15 days for premium/pro users
     } else {
       expiryDate.setDate(expiryDate.getDate() + 7); // 7 days for standard users
     }
+
+    // Tự động đánh dấu tin đăng là premium nếu người dùng có gói premium hoặc pro
+    const isPremium =
+      productData.isPremium ||
+      user.subscription_type === 'premium' ||
+      user.subscription_type === 'pro';
 
     const product = this.productRepository.create({
       ...productData,
@@ -90,7 +99,7 @@ export class ProductService {
       user,
       status: 'pending',
       expiry_date: expiryDate,
-      is_premium: productData.isPremium || false,
+      is_premium: isPremium,
     });
 
     return this.productRepository.save(product);
@@ -189,12 +198,23 @@ export class ProductService {
 
       // Reset expiry date based on subscription type
       const expiryDate = new Date();
-      if (product.user.subscription_type === 'premium') {
-        expiryDate.setDate(expiryDate.getDate() + 15); // 15 days for premium users
+      if (
+        product.user.subscription_type === 'premium' ||
+        product.user.subscription_type === 'pro'
+      ) {
+        expiryDate.setDate(expiryDate.getDate() + 15); // 15 days for premium/pro users
       } else {
         expiryDate.setDate(expiryDate.getDate() + 7); // 7 days for standard users
       }
       productData.expiry_date = expiryDate;
+    }
+
+    // Đảm bảo thuộc tính premium dựa trên gói đăng ký
+    if (
+      product.user.subscription_type === 'premium' ||
+      product.user.subscription_type === 'pro'
+    ) {
+      productData.is_premium = true;
     }
 
     Object.assign(product, productData);
@@ -434,8 +454,11 @@ export class ProductService {
 
     // Set new expiry date based on subscription type
     const expiryDate = new Date();
-    if (product.user.subscription_type === 'premium') {
-      expiryDate.setDate(expiryDate.getDate() + 15); // 15 days for premium users
+    if (
+      product.user.subscription_type === 'premium' ||
+      product.user.subscription_type === 'pro'
+    ) {
+      expiryDate.setDate(expiryDate.getDate() + 15); // 15 days for premium/pro users
     } else {
       expiryDate.setDate(expiryDate.getDate() + 7); // 7 days for standard users
     }
@@ -443,6 +466,14 @@ export class ProductService {
     // Update product
     product.status = 'pending'; // Reset to pending for review
     product.expiry_date = expiryDate;
+
+    // Đảm bảo thuộc tính premium dựa trên gói đăng ký
+    if (
+      product.user.subscription_type === 'premium' ||
+      product.user.subscription_type === 'pro'
+    ) {
+      product.is_premium = true;
+    }
 
     await this.productRepository.save(product);
 
@@ -545,13 +576,13 @@ export class ProductService {
   }
   // Thêm đoạn code này vào ProductService class (thêm vào cuối class)
 
-  // Cron job để kiểm tra và cập nhật trạng thái các tin đăng đã hết hạn
-  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  // Run Cron job to check expired products every hour
+  @Cron(CronExpression.EVERY_HOUR)
   async checkExpiredProducts() {
     const now = new Date();
 
     try {
-      // Tìm các tin đăng có trạng thái "approved" nhưng đã hết hạn
+      // Find products that have expired but not marked as expired
       const expiredProducts = await this.productRepository.find({
         where: {
           status: 'approved',
@@ -561,10 +592,10 @@ export class ProductService {
 
       if (expiredProducts.length > 0) {
         console.log(
-          `Đã tìm thấy ${expiredProducts.length} tin đăng đã hết hạn`,
+          `Found ${expiredProducts.length} products that have expired`,
         );
 
-        // Cập nhật trạng thái của tất cả các tin đăng đã hết hạn
+        // Update status of all expired products
         await Promise.all(
           expiredProducts.map(async (product) => {
             product.status = 'expired';
@@ -572,10 +603,35 @@ export class ProductService {
           }),
         );
 
-        console.log('Đã cập nhật trạng thái các tin đăng hết hạn thành công');
+        console.log('Successfully updated status of expired products');
+      }
+
+      // Also check for expired boosted products
+      const expiredBoostedProducts = await this.productRepository.find({
+        where: {
+          is_boosted: true,
+          boost_expiry_date: LessThan(now),
+        },
+      });
+
+      if (expiredBoostedProducts.length > 0) {
+        console.log(
+          `Found ${expiredBoostedProducts.length} products with expired boost`,
+        );
+
+        // Update boost status
+        await Promise.all(
+          expiredBoostedProducts.map(async (product) => {
+            product.is_boosted = false;
+            product.boost_expiry_date = null;
+            return this.productRepository.save(product);
+          }),
+        );
+
+        console.log('Successfully updated boost status of products');
       }
     } catch (error) {
-      console.error('Lỗi khi kiểm tra tin đăng hết hạn:', error);
+      console.error('Error checking for expired products:', error);
     }
   }
   async hideProduct(productId: number, userId: number) {

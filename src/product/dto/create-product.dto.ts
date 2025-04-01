@@ -9,58 +9,68 @@ import {
   IsBoolean,
   Min,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateProductDto {
-  @ApiProperty({ description: 'Product title' })
+  @ApiProperty({ description: 'Tiêu đề sản phẩm' })
   @IsNotEmpty()
   @IsString()
   title: string;
 
-  @ApiProperty({ description: 'Product description' })
+  @ApiProperty({ description: 'Mô tả sản phẩm' })
   @IsNotEmpty()
   @IsString()
   description: string;
 
-  @ApiProperty({ description: 'Product price' })
+  @ApiProperty({ description: 'Giá sản phẩm' })
   @IsNotEmpty()
   @IsNumber()
   @Min(0)
+  @Type(() => Number)
   price: number;
 
-  @ApiProperty({ description: 'Product images URLs', type: [String] })
+  @ApiProperty({ description: 'URL hình ảnh sản phẩm', type: [String] })
   @IsArray()
   @IsString({ each: true })
   images: string[];
 
-  @ApiProperty({ description: 'Product condition', enum: ['new', 'used'] })
+  @ApiProperty({ description: 'Tình trạng sản phẩm', enum: ['new', 'used'] })
   @IsEnum(['new', 'used'])
   condition: 'new' | 'used';
 
-  @ApiProperty({ description: 'Category ID' })
+  @ApiProperty({ description: 'ID danh mục' })
   @IsNumber()
+  @Type(() => Number)
   categoryId: number;
 
-  @ApiProperty({ description: 'Brand ID' })
+  @ApiProperty({ description: 'ID thương hiệu' })
   @IsNumber()
+  @Type(() => Number)
   brandId: number;
 
-  @ApiPropertyOptional({ description: 'Product address/location' })
+  @ApiPropertyOptional({ description: 'Địa chỉ sản phẩm' })
   @IsOptional()
   @IsString()
   address?: string;
 
-  @ApiPropertyOptional({ description: 'Usage time (for used products)' })
+  @ApiPropertyOptional({
+    description: 'Thời gian sử dụng (đối với sản phẩm đã qua sử dụng)',
+  })
   @IsOptional()
   @IsString()
   usageTime?: string;
 
-  @ApiPropertyOptional({ description: 'Product quantity', default: 1 })
+  @ApiPropertyOptional({ description: 'Số lượng sản phẩm', default: 1 })
   @IsOptional()
   @IsNumber()
   @Min(1)
+  @Type(() => Number)
   quantity?: number;
 
-  @ApiPropertyOptional({ description: 'Is premium listing', default: false })
+  @ApiPropertyOptional({
+    description: 'Đánh dấu là tin đăng premium',
+    default: false,
+  })
   @IsOptional()
   @IsBoolean()
   isPremium?: boolean;

@@ -73,4 +73,11 @@ export class Product {
 
   @UpdateDateColumn()
   updated_at: Date;
+  // Đánh dấu tin đăng cao cấp
+
+  @Column({ default: false })
+  is_boosted: boolean; // Đánh dấu tin được đẩy lên
+
+  @Column({ nullable: true })
+  boost_expiry_date: Date; // Ngày hết hạn đẩy tin
 }

@@ -50,7 +50,7 @@ export class User {
 
   @Column({
     type: 'enum',
-    enum: ['standard', 'premium'],
+    enum: ['standard', 'premium', 'pro'], // Thêm 'pro' vào enum
     default: 'standard',
   })
   subscription_type: string;
