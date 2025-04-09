@@ -110,7 +110,9 @@ export class AuthService {
         role: user.role,
         status: user.status,
         avatar_url: user.avatar_url,
-        balance: user.balance, // Add this line
+        balance: user.balance,
+        subscription_type: user.subscription_type, // Add this field
+        subscription_expiry: user.subscription_expiry, // Add this field
       },
     };
   }
@@ -136,7 +138,9 @@ export class AuthService {
       role: user.role,
       status: user.status,
       avatar_url: user.avatar_url,
-      balance: user.balance, // Add this line
+      balance: user.balance,
+      subscription_type: user.subscription_type, // Add this field
+      subscription_expiry: user.subscription_expiry, // Add this field
       created_at: user.created_at,
       updated_at: user.updated_at,
     };
@@ -149,6 +153,7 @@ export class AuthService {
   }
 
   // Lấy tất cả người dùng (chỉ admin có quyền)
+  // Updated getAllUsers method
   async getAllUsers() {
     const users = await this.userRepository.find({
       select: [
@@ -159,7 +164,9 @@ export class AuthService {
         'role',
         'status',
         'avatar_url',
-        'balance', // Add this line
+        'balance',
+        'subscription_type', // Add this field
+        'subscription_expiry', // Add this field
         'created_at',
         'updated_at',
       ],
@@ -172,6 +179,7 @@ export class AuthService {
   }
 
   // Lấy người dùng có phân trang
+  // Updated getPaginatedUsers method
   async getPaginatedUsers(page: number = 1, limit: number = 20) {
     // Ensure positive values
     page = page > 0 ? page : 1;
@@ -188,7 +196,9 @@ export class AuthService {
         'role',
         'status',
         'avatar_url',
-        'balance', // Add this line
+        'balance',
+        'subscription_type', // Add this field
+        'subscription_expiry', // Add this field
         'created_at',
         'updated_at',
       ],
@@ -237,7 +247,9 @@ export class AuthService {
         role: user.role,
         status: user.status,
         avatar_url: user.avatar_url,
-        balance: user.balance, // Add this line
+        balance: user.balance,
+        subscription_type: user.subscription_type, // Add this field
+        subscription_expiry: user.subscription_expiry, // Add this field
       },
     };
   }
@@ -279,6 +291,8 @@ export class AuthService {
         status: user.status,
         avatar_url: user.avatar_url,
         balance: user.balance,
+        subscription_type: user.subscription_type, // Add this field
+        subscription_expiry: user.subscription_expiry, // Add this field
       },
     };
   }
@@ -316,6 +330,8 @@ export class AuthService {
         id: user.id,
         name: user.name,
         avatar_url: user.avatar_url,
+        subscription_type: user.subscription_type, // Add this field
+        subscription_expiry: user.subscription_expiry, // Add this field
       },
       oldAvatarObjectName,
     };
@@ -393,6 +409,8 @@ export class AuthService {
         role: user.role,
         status: user.status,
         avatar_url: user.avatar_url,
+        subscription_type: user.subscription_type, // Add this field
+        subscription_expiry: user.subscription_expiry, // Add this field
         updated_at: user.updated_at,
       },
     };

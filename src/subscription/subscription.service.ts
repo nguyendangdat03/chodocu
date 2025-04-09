@@ -181,7 +181,7 @@ export class SubscriptionService {
 
       if (!userSubscription || !userSubscription.package.boost_slots) {
         throw new BadRequestException(
-          'You need an active Pro subscription with available boost slots to boost products',
+          'Bạn cần năng cấp lên gói pro để đẩy tin',
         );
       }
 

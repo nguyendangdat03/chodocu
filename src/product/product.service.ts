@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, LessThan, Repository } from 'typeorm';
+import { In, LessThan, Repository, Like } from 'typeorm';
 import { Product } from './product.entity';
 import { Category } from '../category/category.entity';
 import { Brand } from '../brand/brand.entity';
@@ -335,11 +335,20 @@ export class ProductService {
   async getApprovedProducts(
     page = 1,
     limit = 10,
+    search?: string,
   ): Promise<{ data: Product[]; meta: any }> {
     const skip = (page - 1) * limit;
 
+    // Tạo điều kiện tìm kiếm
+    const whereCondition: any = { status: 'approved' };
+
+    // Thêm điều kiện tìm kiếm theo tên nếu có
+    if (search && search.trim()) {
+      whereCondition.title = Like(`%${search.trim()}%`);
+    }
+
     const [products, total] = await this.productRepository.findAndCount({
-      where: { status: 'approved' },
+      where: whereCondition,
       relations: ['user', 'category', 'brand'],
       skip,
       take: limit,
@@ -358,7 +367,6 @@ export class ProductService {
       },
     };
   }
-
   async getProductById(id: number) {
     const product = await this.productRepository.findOne({
       where: { id, status: 'approved' },
@@ -574,7 +582,6 @@ export class ProductService {
       },
     };
   }
-  // Thêm đoạn code này vào ProductService class (thêm vào cuối class)
 
   // Run Cron job to check expired products every hour
   @Cron(CronExpression.EVERY_HOUR)
