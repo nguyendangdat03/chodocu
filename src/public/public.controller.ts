@@ -1,5 +1,13 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
-import { ApiTags, ApiQuery, ApiParam } from '@nestjs/swagger';
+import {
+  BadRequestException,
+  Controller,
+  DefaultValuePipe,
+  Get,
+  Param,
+  ParseIntPipe,
+  Query,
+} from '@nestjs/common';
+import { ApiTags, ApiQuery, ApiParam, ApiOperation } from '@nestjs/swagger';
 import { ProductService } from '../product/product.service';
 import { CategoryService } from '../category/category.service';
 import { BrandService } from '../brand/brand.service';
@@ -14,18 +22,28 @@ export class PublicController {
   ) {}
 
   @Get('products/approved')
+  @ApiOperation({
+    summary: 'Get approved products with optional search by name',
+  })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search by product name',
+  })
   async getPublicApprovedProducts(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
+    @Query('search') search?: string,
   ) {
     // Convert string parameters to numbers and provide defaults
     const pageNum = page ? parseInt(page.toString(), 10) : 1;
     const limitNum = limit ? parseInt(limit.toString(), 10) : 10;
 
-    // Pass the pagination parameters to the service
-    return this.productService.getApprovedProducts(pageNum, limitNum);
+    // Pass the pagination parameters and search term to the service
+    return this.productService.getApprovedProducts(pageNum, limitNum, search);
   }
 
   @Get('categories')
