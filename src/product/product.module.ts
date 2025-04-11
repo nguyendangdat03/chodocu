@@ -4,18 +4,20 @@ import { Product } from './product.entity';
 import { Category } from '../category/category.entity';
 import { Brand } from '../brand/brand.entity';
 import { User } from '../auth/user.entity';
+import { Favorite } from './favorite.entity'; // Import the Favorite entity
 import { ProductService } from './product.service';
 import { ProductController } from './product.controller';
-import { MinioModule } from '../minio/minio.module'; // Import MinioModule
-import { FileUploadController } from '../minio/file-upload.controller'; // Import FileUploadController
-import { AuthModule } from '../auth/auth.module'; // Import AuthModule
+import { MinioModule } from '../minio/minio.module';
+import { FileUploadController } from '../minio/file-upload.controller';
+import { AuthModule } from '../auth/auth.module';
+
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Product, Category, Brand, User]),
+    TypeOrmModule.forFeature([Product, Category, Brand, User, Favorite]), // Add Favorite entity
     MinioModule,
-    AuthModule, // Add MinioModule
+    AuthModule,
   ],
-  controllers: [ProductController, FileUploadController], // Add FileUploadController
+  controllers: [ProductController, FileUploadController],
   providers: [ProductService],
   exports: [ProductService],
 })

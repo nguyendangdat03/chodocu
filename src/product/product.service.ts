@@ -12,9 +12,12 @@ import { Brand } from '../brand/brand.entity';
 import { User } from '../auth/user.entity';
 import { MinioService } from '../minio/minio.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Favorite } from './favorite.entity';
 
 @Injectable()
 export class ProductService {
+  // Update the constructor in ProductService
+
   constructor(
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
@@ -24,6 +27,8 @@ export class ProductService {
     private readonly brandRepository: Repository<Brand>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Favorite) // Add this line
+    private readonly favoriteRepository: Repository<Favorite>, // Add this line
     private readonly minioService: MinioService,
   ) {}
 
@@ -716,5 +721,90 @@ export class ProductService {
       message: 'Product is now visible',
       productId,
     };
+  }
+  // Add these methods to ProductService class
+
+  async addToFavorites(userId: number, productId: number) {
+    // Check if the user exists
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    // Check if the product exists and is approved
+    const product = await this.productRepository.findOne({
+      where: { id: productId, status: 'approved' },
+    });
+    if (!product)
+      throw new NotFoundException('Product not found or not approved');
+
+    // Check if already in favorites
+    const existingFavorite = await this.favoriteRepository.findOne({
+      where: { user: { id: userId }, product: { id: productId } },
+    });
+
+    if (existingFavorite) {
+      return {
+        message: 'Product is already in favorites',
+        favoriteId: existingFavorite.id,
+      };
+    }
+
+    // Create new favorite
+    const favorite = this.favoriteRepository.create({
+      user,
+      product,
+    });
+
+    await this.favoriteRepository.save(favorite);
+    return { message: 'Product added to favorites', favoriteId: favorite.id };
+  }
+
+  async removeFromFavorites(userId: number, productId: number) {
+    const favorite = await this.favoriteRepository.findOne({
+      where: { user: { id: userId }, product: { id: productId } },
+    });
+
+    if (!favorite) {
+      throw new NotFoundException('Favorite not found');
+    }
+
+    await this.favoriteRepository.remove(favorite);
+    return { message: 'Product removed from favorites', productId };
+  }
+
+  async getUserFavorites(userId: number, page = 1, limit = 10) {
+    const skip = (page - 1) * limit;
+
+    const [favorites, total] = await this.favoriteRepository.findAndCount({
+      where: { user: { id: userId } },
+      relations: ['product', 'product.category', 'product.brand'],
+      skip,
+      take: limit,
+      order: { created_at: 'DESC' },
+    });
+
+    // Map to return just the products
+    const products = favorites
+      .map((favorite) => favorite.product)
+      .filter((product) => product && product.status === 'approved'); // Filter out any removed or non-approved products
+
+    return {
+      data: products,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPreviousPage: page > 1,
+      },
+    };
+  }
+
+  async checkIsFavorite(userId: number, productId: number) {
+    const favorite = await this.favoriteRepository.findOne({
+      where: { user: { id: userId }, product: { id: productId } },
+    });
+
+    return { isFavorite: !!favorite };
   }
 }

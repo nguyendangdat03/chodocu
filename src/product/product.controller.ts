@@ -141,4 +141,51 @@ export class ProductController {
     }
     return this.productService.showProduct(productId, user_id);
   }
+  // Add these endpoints to ProductController class
+
+  @Post(':productId/favorite')
+  @ApiOperation({ summary: 'Add a product to favorites' })
+  @ApiParam({ name: 'productId', required: true, type: Number })
+  async addToFavorites(
+    @Request() req,
+    @Param('productId', ParseIntPipe) productId: number,
+  ) {
+    const { user_id } = req.user;
+    return this.productService.addToFavorites(user_id, productId);
+  }
+
+  @Delete(':productId/favorite')
+  @ApiOperation({ summary: 'Remove a product from favorites' })
+  @ApiParam({ name: 'productId', required: true, type: Number })
+  async removeFromFavorites(
+    @Request() req,
+    @Param('productId', ParseIntPipe) productId: number,
+  ) {
+    const { user_id } = req.user;
+    return this.productService.removeFromFavorites(user_id, productId);
+  }
+
+  @Get('favorites')
+  @ApiOperation({ summary: 'Get favorite products for current user' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  async getUserFavorites(
+    @Request() req,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page?: number,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit?: number,
+  ) {
+    const { user_id } = req.user;
+    return this.productService.getUserFavorites(user_id, page, limit);
+  }
+
+  @Get(':productId/is-favorite')
+  @ApiOperation({ summary: 'Check if a product is in user favorites' })
+  @ApiParam({ name: 'productId', required: true, type: Number })
+  async checkIsFavorite(
+    @Request() req,
+    @Param('productId', ParseIntPipe) productId: number,
+  ) {
+    const { user_id } = req.user;
+    return this.productService.checkIsFavorite(user_id, productId);
+  }
 }
