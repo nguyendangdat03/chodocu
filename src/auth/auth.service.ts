@@ -93,7 +93,7 @@ export class AuthService {
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      throw new BadRequestException('Invalid credentials.');
+      throw new BadRequestException('Sai thông tin tài khoản hoặc mât khẩu.');
     }
 
     // Thiết lập cookie role và user_id
