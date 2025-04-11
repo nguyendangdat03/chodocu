@@ -130,14 +130,39 @@ export class ChatService {
     // Xử lý và định dạng lại kết quả để dễ sử dụng hơn
     return conversations.map((conversation) => {
       // Lọc ra người nhận (người không phải là người dùng hiện tại)
-      const receivers = conversation.participants.filter(
-        (participant) => participant.id !== userId,
-      );
+      const receivers = conversation.participants
+        .filter((participant) => participant.id !== userId)
+        .map((participant) => {
+          // Sanitize user data by removing sensitive fields
+          const {
+            password,
+            role,
+            status,
+            subscription_type,
+            subscription_expiry,
+            ...sanitizedUser
+          } = participant;
+          return sanitizedUser;
+        });
 
       // Lọc ra người dùng hiện tại
-      const currentUser = conversation.participants.find(
+      const currentUserFull = conversation.participants.find(
         (participant) => participant.id === userId,
       );
+
+      // Sanitize current user data
+      let currentUser = null;
+      if (currentUserFull) {
+        const {
+          password,
+          role,
+          status,
+          subscription_type,
+          subscription_expiry,
+          ...sanitizedUser
+        } = currentUserFull;
+        currentUser = sanitizedUser;
+      }
 
       // Lấy tin nhắn mới nhất
       let lastMessage = null;
@@ -147,7 +172,21 @@ export class ChatService {
           (a, b) =>
             new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
         );
-        lastMessage = conversation.messages[0];
+
+        lastMessage = { ...conversation.messages[0] };
+
+        // Sanitize sender data in last message if it exists
+        if (lastMessage.sender) {
+          const {
+            password,
+            role,
+            status,
+            subscription_type,
+            subscription_expiry,
+            ...sanitizedSender
+          } = lastMessage.sender;
+          lastMessage.sender = sanitizedSender;
+        }
       }
 
       // Trả về định dạng phù hợp
@@ -187,10 +226,30 @@ export class ChatService {
       );
     }
 
-    return this.messageRepository.find({
+    const messages = await this.messageRepository.find({
       where: { conversation_id: conversationId },
       relations: ['sender'],
       order: { created_at: 'ASC' },
+    });
+
+    // Sanitize sender data in each message
+    return messages.map((message) => {
+      // Create a new object to avoid modifying the original
+      const sanitizedMessage = { ...message };
+
+      if (sanitizedMessage.sender) {
+        const {
+          password,
+          role,
+          status,
+          subscription_type,
+          subscription_expiry,
+          ...sanitizedSender
+        } = sanitizedMessage.sender;
+        sanitizedMessage.sender = sanitizedSender as User; // Add type assertion here
+      }
+
+      return sanitizedMessage;
     });
   }
 }

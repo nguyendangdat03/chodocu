@@ -355,8 +355,25 @@ export class ProductService {
       order: { id: 'DESC' },
     });
 
+    // Remove sensitive user information
+    const sanitizedProducts = products.map((product) => {
+      if (product.user) {
+        const {
+          password,
+          role,
+          status,
+          subscription_type,
+          subscription_expiry,
+          balance,
+          ...userInfo
+        } = product.user;
+        product.user = userInfo as any;
+      }
+      return product;
+    });
+
     return {
-      data: products,
+      data: sanitizedProducts,
       meta: {
         total,
         page,

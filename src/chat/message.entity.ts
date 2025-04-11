@@ -40,4 +40,14 @@ export class Message {
 
   @UpdateDateColumn()
   updated_at: Date;
+  message: {
+    id: number;
+    phone_number: string;
+    email: string;
+    name: string;
+    avatar_url: string;
+    balance: number;
+    created_at: Date;
+    updated_at: Date;
+  };
 }
