@@ -40,4 +40,39 @@ export class BrandService {
       relations: ['category'], // Đảm bảo lấy thông tin liên quan
     });
   }
+
+  // Cập nhật thương hiệu
+  async updateBrand(id: number, name: string, categoryId: number) {
+    const brand = await this.brandRepository.findOne({
+      where: { id },
+      relations: ['category'],
+    });
+    if (!brand) throw new Error('Brand not found');
+
+    const category = await this.categoryRepository.findOne({
+      where: { id: categoryId },
+    });
+    if (!category) throw new Error('Category not found');
+
+    brand.name = name;
+    brand.category = category;
+
+    return this.brandRepository.save(brand);
+  }
+
+  // Xóa thương hiệu
+  async deleteBrand(id: number) {
+    const brand = await this.brandRepository.findOne({ where: { id } });
+    if (!brand) throw new Error('Brand not found');
+
+    await this.brandRepository.remove(brand);
+    return { message: 'Brand deleted successfully' };
+  }
+
+  // Lấy tất cả thương hiệu
+  async getAllBrands() {
+    return this.brandRepository.find({
+      relations: ['category'],
+    });
+  }
 }

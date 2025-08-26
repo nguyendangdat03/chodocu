@@ -2,6 +2,8 @@ import {
   Controller,
   Post,
   Get,
+  Put,
+  Delete,
   Body,
   Request,
   Param,
@@ -27,6 +29,19 @@ export class BrandController {
     );
   }
 
+  @Get()
+  async getAllBrands() {
+    const brands = await this.brandService.getAllBrands();
+    return brands.map((brand) => ({
+      id: brand.id,
+      name: brand.name,
+      category: {
+        id: brand.category.id,
+        name: brand.category.name,
+      },
+    }));
+  }
+
   @Get(':categoryId')
   async getBrandsByCategory(@Param('categoryId') categoryId: number) {
     const brands = await this.brandService.getBrandsByCategory(categoryId);
@@ -38,5 +53,29 @@ export class BrandController {
         name: brand.category.name,
       },
     }));
+  }
+
+  @Put(':id')
+  async updateBrand(
+    @Request() req,
+    @Param('id') id: number,
+    @Body() updateBrandDto: CreateBrandDto,
+  ) {
+    if (req.cookies.role !== 'admin') {
+      throw new ForbiddenException('You do not have admin access');
+    }
+    return this.brandService.updateBrand(
+      id,
+      updateBrandDto.name,
+      updateBrandDto.categoryId,
+    );
+  }
+
+  @Delete(':id')
+  async deleteBrand(@Request() req, @Param('id') id: number) {
+    if (req.cookies.role !== 'admin') {
+      throw new ForbiddenException('You do not have admin access');
+    }
+    return this.brandService.deleteBrand(id);
   }
 }

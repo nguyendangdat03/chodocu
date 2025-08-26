@@ -2,7 +2,10 @@ import {
   Controller,
   Post,
   Get,
+  Put,
+  Delete,
   Body,
+  Param,
   Request,
   ForbiddenException,
 } from '@nestjs/common';
@@ -49,5 +52,25 @@ export class CategoryController {
       name: category.name,
       parent_id: category.parent_id,
     }));
+  }
+
+  @Put(':id')
+  async updateCategory(
+    @Request() req,
+    @Param('id') id: number,
+    @Body() updateCategoryDto: CreateMainCategoryDto,
+  ) {
+    if (req.cookies.role !== 'admin') {
+      throw new ForbiddenException('You do not have admin access');
+    }
+    return this.categoryService.updateCategory(id, updateCategoryDto.name);
+  }
+
+  @Delete(':id')
+  async deleteCategory(@Request() req, @Param('id') id: number) {
+    if (req.cookies.role !== 'admin') {
+      throw new ForbiddenException('You do not have admin access');
+    }
+    return this.categoryService.deleteCategory(id);
   }
 }

@@ -47,7 +47,7 @@ export class FileUploadController {
         if (!file.mimetype.match(/image\/(jpg|jpeg|png|gif)$/)) {
           return cb(
             new BadRequestException(
-              'Only JPG, JPEG, PNG and GIF files are allowed!',
+              'Chỉ JPG, JPEG, PNG và GIF được chấp nhận!',
             ),
             false,
           );
