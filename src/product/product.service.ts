@@ -77,7 +77,6 @@ export class ProductService {
       }
     }
 
-    // Validate image URLs (should be from MinIO)
     this.validateMinioImageUrls(productData.images);
 
     // Calculate expiry date (15 days for premium users, 7 days for standard users)
@@ -237,23 +236,42 @@ export class ProductService {
       );
     }
 
-    // Delete product images from MinIO
-    const images = product.images || [];
-    await Promise.all(
-      images.map(async (url) => {
-        const objectName = this.getObjectNameFromUrl(url);
-        if (objectName) {
-          try {
-            await this.minioService.deleteFile(objectName);
-          } catch (error) {
-            console.error(`Failed to delete image ${url}:`, error);
-          }
-        }
-      }),
-    );
+    // First, delete related product_boosts entries using a direct query
+    // since we don't have the entity in the code
+    try {
+      // Delete any related product_boosts entries
+      await this.productRepository.manager.query(
+        'DELETE FROM product_boosts WHERE product_id = ?',
+        [productId],
+      );
 
-    await this.productRepository.remove(product);
-    return { message: 'Product deleted successfully', productId };
+      // Delete any related favorites
+      await this.favoriteRepository.delete({ product: { id: productId } });
+
+      // Delete product images from MinIO
+      const images = product.images || [];
+      await Promise.all(
+        images.map(async (url) => {
+          const objectName = this.getObjectNameFromUrl(url);
+          if (objectName) {
+            try {
+              await this.minioService.deleteFile(objectName);
+            } catch (error) {
+              console.error(`Failed to delete image ${url}:`, error);
+            }
+          }
+        }),
+      );
+
+      // Now remove the product
+      await this.productRepository.remove(product);
+      return { message: 'Product deleted successfully', productId };
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      throw new BadRequestException(
+        'Failed to delete product. Please try again.',
+      );
+    }
   }
 
   async updateProductStatus(
@@ -342,6 +360,9 @@ export class ProductService {
     limit = 10,
     search?: string,
   ): Promise<{ data: Product[]; meta: any }> {
+    // Trước tiên, kiểm tra và cập nhật sản phẩm hết hạn
+    await this.checkAndUpdateExpiredProducts();
+
     const skip = (page - 1) * limit;
 
     // Tạo điều kiện tìm kiếm
@@ -401,6 +422,14 @@ export class ProductService {
       );
     }
 
+    // Kiểm tra và cập nhật trạng thái hết hạn
+    await this.checkAndUpdateSingleProductExpiry(product);
+
+    // Nếu sản phẩm đã hết hạn sau khi kiểm tra, thông báo cho người dùng
+    if (product.status === 'expired') {
+      throw new NotFoundException(`Product with ID ${id} has expired`);
+    }
+
     // Remove sensitive user information
     if (product.user) {
       const { password, role, ...userInfo } = product.user;
@@ -416,6 +445,11 @@ export class ProductService {
     limit = 10,
   ) {
     try {
+      // Nếu đang tìm kiếm sản phẩm đã được phê duyệt, kiểm tra các sản phẩm hết hạn
+      if (!status || status === 'approved') {
+        await this.checkAndUpdateExpiredProducts();
+      }
+
       const where: any = { user: { id: userId } };
 
       if (status) {
@@ -431,6 +465,15 @@ export class ProductService {
         take: limit,
         order: { id: 'DESC' },
       });
+
+      // Kiểm tra từng sản phẩm
+      if (!status || status === 'approved') {
+        await Promise.all(
+          products.map(async (product) => {
+            await this.checkAndUpdateSingleProductExpiry(product);
+          }),
+        );
+      }
 
       return {
         data: products,
@@ -518,6 +561,9 @@ export class ProductService {
     page = 1,
     limit = 10,
   ): Promise<{ data: Product[]; meta: any }> {
+    // Kiểm tra sản phẩm hết hạn
+    await this.checkAndUpdateExpiredProducts();
+
     const skip = (page - 1) * limit;
 
     const [products, total] = await this.productRepository.findAndCount({
@@ -531,8 +577,20 @@ export class ProductService {
       order: { id: 'DESC' },
     });
 
+    // Kiểm tra từng sản phẩm
+    await Promise.all(
+      products.map(async (product) => {
+        await this.checkAndUpdateSingleProductExpiry(product);
+      }),
+    );
+
+    // Lọc ra các sản phẩm vẫn còn hiệu lực sau khi kiểm tra
+    const validProducts = products.filter(
+      (product) => product.status === 'approved',
+    );
+
     // Remove sensitive user information
-    const sanitizedProducts = products.map((product) => {
+    const sanitizedProducts = validProducts.map((product) => {
       if (product.user) {
         const { password, role, ...userInfo } = product.user;
         product.user = userInfo as any;
@@ -543,21 +601,23 @@ export class ProductService {
     return {
       data: sanitizedProducts,
       meta: {
-        total,
+        total: validProducts.length,
         page,
         limit,
-        totalPages: Math.ceil(total / limit),
-        hasNextPage: page < Math.ceil(total / limit),
+        totalPages: Math.ceil(validProducts.length / limit),
+        hasNextPage: page < Math.ceil(validProducts.length / limit),
         hasPreviousPage: page > 1,
       },
     };
   }
-
   async getProductsByParentCategory(
     parentCategoryId: number,
     page = 1,
     limit = 10,
   ): Promise<{ data: Product[]; meta: any }> {
+    // Kiểm tra sản phẩm hết hạn
+    await this.checkAndUpdateExpiredProducts();
+
     const skip = (page - 1) * limit;
 
     // First, get all child categories of the parent category
@@ -583,8 +643,20 @@ export class ProductService {
       order: { id: 'DESC' },
     });
 
+    // Kiểm tra từng sản phẩm
+    await Promise.all(
+      products.map(async (product) => {
+        await this.checkAndUpdateSingleProductExpiry(product);
+      }),
+    );
+
+    // Lọc ra các sản phẩm vẫn còn hiệu lực sau khi kiểm tra
+    const validProducts = products.filter(
+      (product) => product.status === 'approved',
+    );
+
     // Remove sensitive user information
-    const sanitizedProducts = products.map((product) => {
+    const sanitizedProducts = validProducts.map((product) => {
       if (product.user) {
         const { password, role, ...userInfo } = product.user;
         product.user = userInfo as any;
@@ -595,73 +667,19 @@ export class ProductService {
     return {
       data: sanitizedProducts,
       meta: {
-        total,
+        total: validProducts.length,
         page,
         limit,
-        totalPages: Math.ceil(total / limit),
-        hasNextPage: page < Math.ceil(total / limit),
+        totalPages: Math.ceil(validProducts.length / limit),
+        hasNextPage: page < Math.ceil(validProducts.length / limit),
         hasPreviousPage: page > 1,
       },
     };
   }
 
-  // Run Cron job to check expired products every hour
   @Cron(CronExpression.EVERY_HOUR)
   async checkExpiredProducts() {
-    const now = new Date();
-
-    try {
-      // Find products that have expired but not marked as expired
-      const expiredProducts = await this.productRepository.find({
-        where: {
-          status: 'approved',
-          expiry_date: LessThan(now),
-        },
-      });
-
-      if (expiredProducts.length > 0) {
-        console.log(
-          `Found ${expiredProducts.length} products that have expired`,
-        );
-
-        // Update status of all expired products
-        await Promise.all(
-          expiredProducts.map(async (product) => {
-            product.status = 'expired';
-            return this.productRepository.save(product);
-          }),
-        );
-
-        console.log('Successfully updated status of expired products');
-      }
-
-      // Also check for expired boosted products
-      const expiredBoostedProducts = await this.productRepository.find({
-        where: {
-          is_boosted: true,
-          boost_expiry_date: LessThan(now),
-        },
-      });
-
-      if (expiredBoostedProducts.length > 0) {
-        console.log(
-          `Found ${expiredBoostedProducts.length} products with expired boost`,
-        );
-
-        // Update boost status
-        await Promise.all(
-          expiredBoostedProducts.map(async (product) => {
-            product.is_boosted = false;
-            product.boost_expiry_date = null;
-            return this.productRepository.save(product);
-          }),
-        );
-
-        console.log('Successfully updated boost status of products');
-      }
-    } catch (error) {
-      console.error('Error checking for expired products:', error);
-    }
+    await this.checkAndUpdateExpiredProducts();
   }
   async hideProduct(productId: number, userId: number) {
     const product = await this.productRepository.findOne({
@@ -772,6 +790,9 @@ export class ProductService {
   }
 
   async getUserFavorites(userId: number, page = 1, limit = 10) {
+    // Kiểm tra sản phẩm hết hạn
+    await this.checkAndUpdateExpiredProducts();
+
     const skip = (page - 1) * limit;
 
     const [favorites, total] = await this.favoriteRepository.findAndCount({
@@ -782,6 +803,15 @@ export class ProductService {
       order: { created_at: 'DESC' },
     });
 
+    // Kiểm tra từng sản phẩm trong mục yêu thích
+    await Promise.all(
+      favorites.map(async (favorite) => {
+        if (favorite.product) {
+          await this.checkAndUpdateSingleProductExpiry(favorite.product);
+        }
+      }),
+    );
+
     // Map to return just the products
     const products = favorites
       .map((favorite) => favorite.product)
@@ -790,11 +820,11 @@ export class ProductService {
     return {
       data: products,
       meta: {
-        total,
+        total: products.length,
         page,
         limit,
-        totalPages: Math.ceil(total / limit),
-        hasNextPage: page < Math.ceil(total / limit),
+        totalPages: Math.ceil(products.length / limit),
+        hasNextPage: page < Math.ceil(products.length / limit),
         hasPreviousPage: page > 1,
       },
     };
@@ -806,5 +836,93 @@ export class ProductService {
     });
 
     return { isFavorite: !!favorite };
+  }
+  async checkAndUpdateExpiredProducts() {
+    const now = new Date();
+
+    try {
+      // Tìm sản phẩm đã hết hạn nhưng chưa được đánh dấu là hết hạn
+      const expiredProducts = await this.productRepository.find({
+        where: {
+          status: 'approved',
+          expiry_date: LessThan(now),
+        },
+      });
+
+      if (expiredProducts.length > 0) {
+        console.log(
+          `Found ${expiredProducts.length} products that have expired`,
+        );
+
+        // Cập nhật trạng thái cho tất cả sản phẩm hết hạn
+        await Promise.all(
+          expiredProducts.map(async (product) => {
+            product.status = 'expired';
+            return this.productRepository.save(product);
+          }),
+        );
+
+        console.log('Successfully updated status of expired products');
+      }
+
+      // Kiểm tra sản phẩm có boost đã hết hạn
+      const expiredBoostedProducts = await this.productRepository.find({
+        where: {
+          is_boosted: true,
+          boost_expiry_date: LessThan(now),
+        },
+      });
+
+      if (expiredBoostedProducts.length > 0) {
+        console.log(
+          `Found ${expiredBoostedProducts.length} products with expired boost`,
+        );
+
+        // Cập nhật trạng thái boost
+        await Promise.all(
+          expiredBoostedProducts.map(async (product) => {
+            product.is_boosted = false;
+            product.boost_expiry_date = null;
+            return this.productRepository.save(product);
+          }),
+        );
+
+        console.log('Successfully updated boost status of products');
+      }
+    } catch (error) {
+      console.error('Error checking for expired products:', error);
+    }
+  }
+
+  // Helper method để kiểm tra và cập nhật một sản phẩm cụ thể
+  async checkAndUpdateSingleProductExpiry(product: Product): Promise<Product> {
+    const now = new Date();
+
+    // Kiểm tra xem sản phẩm đã hết hạn chưa
+    if (
+      product.status === 'approved' &&
+      product.expiry_date &&
+      product.expiry_date < now
+    ) {
+      console.log(`Product ${product.id} has expired, updating status`);
+      product.status = 'expired';
+      await this.productRepository.save(product);
+    }
+
+    // Kiểm tra xem boost của sản phẩm đã hết hạn chưa
+    if (
+      product.is_boosted &&
+      product.boost_expiry_date &&
+      product.boost_expiry_date < now
+    ) {
+      console.log(
+        `Product ${product.id} boost has expired, updating boost status`,
+      );
+      product.is_boosted = false;
+      product.boost_expiry_date = null;
+      await this.productRepository.save(product);
+    }
+
+    return product;
   }
 }
